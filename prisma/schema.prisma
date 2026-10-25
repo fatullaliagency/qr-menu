@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Restoran (SaaS Müşterisi) Tablosu
+model Restaurant {
+  id        String   @id @default(uuid())
+  slug      String   @unique // URL adresi (örn: fatullali-menu)
+  name      String
+  phone     String
+  createdAt DateTime @default(now())
+  
+  categories Category[]
+  menuItems  MenuItem[]
+}
+
+// Menü Kategorileri Tablosu
+model Category {
+  id           String     @id @default(uuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  
+  menuItems    MenuItem[]
+}
+
+// Ürünler Tablosu
+model MenuItem {
+  id           String     @id @default(uuid())
+  name         String
+  description  String?
+  price        Float
+  imageUrl     String?
+  
+  categoryId   String
+  restaurantId String
+  
+  category     Category   @relation(fields: [categoryId], references: [id])
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+}
