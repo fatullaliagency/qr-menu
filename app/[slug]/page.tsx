@@ -1,7 +1,7 @@
 import { db } from "@/app/lib/db";
 import { notFound } from "next/navigation";
 import ClientRestaurantMenu from "./ClientRestaurantMenu";
-
+export const instant = false;
 interface PageProps {
   params: Promise<{
     slug: string;
