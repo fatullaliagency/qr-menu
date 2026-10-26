@@ -41,6 +41,54 @@ export default async function AdminPage({ searchParams }: AdminProps) {
     );
   }
 
+  const restData = restaurant as any;
+
+  // Sunucu Eylemi 0: Restoran Vitrin & Məlumatlarını Yeniləmə
+  async function updateRestaurantInfo(formData: FormData) {
+    "use server";
+    if (!restaurant) return;
+
+    const name = (formData.get("name") as string) || restaurant.name;
+    const phone = (formData.get("phone") as string) || restaurant.phone;
+    const subtitle = (formData.get("subtitle") as string) || "";
+    const slogan = (formData.get("slogan") as string) || "";
+    const description = (formData.get("description") as string) || "";
+    const logoUrl = (formData.get("logoUrl") as string) || "";
+    const bgImageUrl = (formData.get("bgImageUrl") as string) || "";
+    const heroFoodUrl = (formData.get("heroFoodUrl") as string) || "";
+    const wifiName = (formData.get("wifiName") as string) || "";
+    const wifiPassword = (formData.get("wifiPassword") as string) || "";
+    const address = (formData.get("address") as string) || "";
+    const workingHours = (formData.get("workingHours") as string) || "";
+    const instagramUrl = (formData.get("instagramUrl") as string) || "";
+    const facebookUrl = (formData.get("facebookUrl") as string) || "";
+    const mapUrl = (formData.get("mapUrl") as string) || "";
+
+    await (db.restaurant as any).update({
+      where: { id: restaurant.id },
+      data: {
+        name,
+        phone,
+        subtitle,
+        slogan,
+        description,
+        logoUrl,
+        bgImageUrl,
+        heroFoodUrl,
+        wifiName,
+        wifiPassword,
+        address,
+        workingHours,
+        instagramUrl,
+        facebookUrl,
+        mapUrl,
+      },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant.slug}`);
+  }
+
   // Sunucu Eylemi 1: Yeni Kategori Ekleme
   async function addCategory(formData: FormData) {
     "use server";
@@ -129,6 +177,185 @@ export default async function AdminPage({ searchParams }: AdminProps) {
 
           {/* QR Kod Kutusu */}
           <QrCodeBox slug={restaurant.slug} restaurantName={restaurant.name} />
+
+          {/* YENİ: Restoran Vitrin, Logo, Arxa Plan, Wi-Fi və Əlaqə Ayarları */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-amber-200">
+            <h2 className="text-lg font-bold mb-1 text-zinc-900">
+              ✨ Restoran Vitrin və Məlumat Ayarları (Ana Səhifə Dizaynı)
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Loqo, arxa plan şəkli, sloqanlar, Wi-Fi şifrəsi, ünvan və iş saatlarını buradan yeniləyə bilərsiniz.
+            </p>
+            <form action={updateRestaurantInfo} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Restoranın Adı
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    defaultValue={restaurant.name}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mətbəx / Alt Başlıq
+                  </label>
+                  <input
+                    type="text"
+                    name="subtitle"
+                    defaultValue={restData.subtitle || "TÜRKİYƏ · AVROPA · MİLLİ MƏTBƏXİ"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Əsas Sloqan
+                  </label>
+                  <input
+                    type="text"
+                    name="slogan"
+                    defaultValue={restData.slogan || "Zövqünüzə uyğun təamlarla xidmətinizdəyik!"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Alt Açıqlama Mətni
+                  </label>
+                  <input
+                    type="text"
+                    name="description"
+                    defaultValue={restData.description || "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada."}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Loqo Şəkil Linki (URL - İstəyə bağlı)
+                  </label>
+                  <input
+                    type="url"
+                    name="logoUrl"
+                    defaultValue={restData.logoUrl || ""}
+                    placeholder="https://... (Boş qalsa qızılı Fatullali loqosu görünür)"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Arxa Plan (Fon) Şəkil Linki (URL)
+                  </label>
+                  <input
+                    type="url"
+                    name="bgImageUrl"
+                    defaultValue={restData.bgImageUrl || ""}
+                    placeholder="https://... (Üst hissənin arxa plan şəkli)"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefon Ekranındakı Yemək Şəkli Linki (URL)
+                  </label>
+                  <input
+                    type="url"
+                    name="heroFoodUrl"
+                    defaultValue={restData.heroFoodUrl || ""}
+                    placeholder="https://..."
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefon / WhatsApp Nömrəsi
+                  </label>
+                  <input
+                    type="text"
+                    name="phone"
+                    defaultValue={restaurant.phone}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Wi-Fi Şəbəkə Adı
+                  </label>
+                  <input
+                    type="text"
+                    name="wifiName"
+                    defaultValue={restData.wifiName || "Fatullali 1"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Wi-Fi Şifrəsi
+                  </label>
+                  <input
+                    type="text"
+                    name="wifiPassword"
+                    defaultValue={restData.wifiPassword || "Fatullali12345"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ünvan
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    defaultValue={restData.address || "Fətəli Xan Xoyski 98"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    İş Saatları (Açıq saatlar)
+                  </label>
+                  <input
+                    type="text"
+                    name="workingHours"
+                    defaultValue={restData.workingHours || "8:00 / 23:30"}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Instagram Linki (İstəyə bağlı)
+                  </label>
+                  <input
+                    type="url"
+                    name="instagramUrl"
+                    defaultValue={restData.instagramUrl || ""}
+                    placeholder="https://instagram.com/..."
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Xəritə / Konum Linki (İstəyə bağlı)
+                  </label>
+                  <input
+                    type="url"
+                    name="mapUrl"
+                    defaultValue={restData.mapUrl || ""}
+                    placeholder="https://maps.google.com/..."
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-amber-600 text-white font-semibold py-2.5 rounded-xl hover:bg-amber-700 transition"
+              >
+                💾 Vitrin və Restoran Məlumatlarını Yadda Saxla
+              </button>
+            </form>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 1. Kutu: Kategori Ekleme Formu */}
