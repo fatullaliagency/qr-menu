@@ -9,12 +9,25 @@ datasource db {
 
 // Restoran (SaaS Müşterisi) Tablosu
 model Restaurant {
-  id        String   @id @default(uuid())
-  slug      String   @unique // URL adresi (örn: fatullali-menu)
-  name      String
-  phone     String
-  createdAt DateTime @default(now())
-  
+  id           String   @id @default(uuid())
+  slug         String   @unique // URL adresi (örn: fatullali-menu)
+  name         String
+  phone        String
+  logoUrl      String?  @default("")
+  bgImageUrl   String?  @default("")
+  heroFoodUrl  String?  @default("")
+  subtitle     String?  @default("TÜRKİYƏ · AVROPA · MİLLİ MƏTBƏXİ")
+  slogan       String?  @default("Zövqünüzə uyğun təamlarla xidmətinizdəyik!")
+  description  String?  @default("Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada.")
+  wifiName     String?  @default("Fatullali 1")
+  wifiPassword String?  @default("Fatullali12345")
+  address      String?  @default("Fətəli Xan Xoyski 98")
+  workingHours String?  @default("8:00 / 23:30")
+  instagramUrl String?  @default("")
+  facebookUrl  String?  @default("")
+  mapUrl       String?  @default("")
+  createdAt    DateTime @default(now())
+
   categories Category[]
   menuItems  MenuItem[]
 }
