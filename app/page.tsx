@@ -30,7 +30,7 @@ export default async function HomePage() {
     const name = (fd.get("name") as string) ?? "";
     const rawSlug = (fd.get("slug") as string) ?? "";
     const phone = (fd.get("phone") as string) ?? "";
-    const pinCode = (fd.get("pinCode") as string) ?? "1234";
+    const pinCode = (fd.get("pinCode") as string) ?? "";
     const subtitle = (fd.get("subtitle") as string) ?? "";
     const address = (fd.get("address") as string) ?? "";
 
@@ -47,8 +47,8 @@ export default async function HomePage() {
         name,
         slug,
         phone,
-        pinCode: pinCode ? pinCode : "1234",
-        subtitle: subtitle ? subtitle : "RESTORAN & KAFE",
+        pinCode: pinCode ? pinCode.trim() : "1234",
+        subtitle: subtitle ? subtitle : "RESTORAN VƏ KAFE",
         slogan: "Zövqünüzə uyğun təamlarla xidmətinizdəyik!",
         description: "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada.",
         address: address ? address : "Bakı şəhəri",
@@ -56,6 +56,19 @@ export default async function HomePage() {
       },
     });
 
+    revalidatePath("/");
+  }
+
+  async function updatePin(fd: FormData) {
+    "use server";
+    const id = (fd.get("id") as string) ?? "";
+    const pinCode = (fd.get("pinCode") as string) ?? "";
+    if (!id) return;
+    if (!pinCode) return;
+    await (db.restaurant as any).update({
+      where: { id },
+      data: { pinCode: pinCode.trim() },
+    });
     revalidatePath("/");
   }
 
@@ -84,7 +97,7 @@ export default async function HomePage() {
                 QR Menyu Platforması — Baş Admin
               </h1>
               <p className="text-xs text-zinc-400 mt-1">
-                Yeni restoranları və hər restoranın öz fərqli giriş şifrəsini buradan təyin edin.
+                Hər yeni restoran üçün fərqli PİN şifrəsi təyin edə bilərsiniz.
               </p>
             </div>
             <div className="bg-[#1c1813] border border-[#d4af37]/30 px-4 py-2.5 rounded-xl text-center">
@@ -99,12 +112,12 @@ export default async function HomePage() {
               <input name="name" placeholder="Restoranın Adı (məs: Padişah)" required className={inp} />
               <input name="slug" placeholder="Link adı (məs: padisah)" required className={inp} />
               <input name="phone" placeholder="WhatsApp (məs: 994501234567)" required className={inp} />
-              <input name="pinCode" placeholder="🔑 Bu Restoranın Öz Şifrəsi (məs: 4455)" required className={inp} />
-              <input name="subtitle" placeholder="Mətbəx (məs: Milli və Avropa Mətbəxi)" className={inp} />
+              <input name="pinCode" placeholder="🔑 Bu Restoranın Şifrəsi (məs: 4545)" required className={inp} />
+              <input name="subtitle" placeholder="Mətbəx (məs: Milli Mətbəx)" className={inp} />
               <input name="address" placeholder="Ünvan (məs: Nərimanov r.)" className={inp} />
             </div>
             <button type="submit" className="w-full bg-[#d4af37] hover:bg-[#e5c158] text-black font-bold py-3 rounded-xl transition">
-              🚀 Yeni Restoranı Öz Şifrəsi İlə Yarat
+              🚀 Yeni Restoranı Yarat
             </button>
           </form>
 
@@ -126,12 +139,8 @@ export default async function HomePage() {
                         )}
                         <div>
                           <h3 className="text-lg font-bold text-white">{rest.name}</h3>
-                          <p className="text-xs text-[#d4af37]">
-                            /{rest.slug} · 🔑 Şifrə: <strong>{r.pinCode ? r.pinCode : "1234"}</strong>
-                          </p>
-                          <p className="text-xs text-zinc-400 mt-0.5">
-                            {rest.categories.length} kateqoriya · 📞 {rest.phone}
-                          </p>
+                          <p className="text-xs text-[#d4af37]">/{rest.slug}</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">📞 {rest.phone}</p>
                         </div>
                       </div>
 
@@ -143,15 +152,22 @@ export default async function HomePage() {
                       </form>
                     </div>
 
+                    <form action={updatePin} className="flex items-center gap-2 bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800">
+                      <input type="hidden" name="id" value={rest.id} />
+                      <span className="text-xs text-zinc-400 shrink-0">🔑 Restoran Şifrəsi:</span>
+                      <input
+                        name="pinCode"
+                        defaultValue={r.pinCode ? r.pinCode : "1234"}
+                        className="bg-black border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-[#e5c158] font-bold w-full"
+                      />
+                      <button type="submit" className="bg-zinc-800 hover:bg-zinc-700 text-xs px-3 py-1.5 rounded-lg font-semibold shrink-0">
+                        Dəyiş
+                      </button>
+                    </form>
+
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800">
                       <Link
-                        href={`/admin?slug=${rest.slug}`}
-                        className="bg-[#d4af37] hover:bg-[#e5c158] text-black text-xs font-bold py-2.5 px-3 rounded-xl text-center"
-                      >
-                        ⚙️ Brend & Menyu Paneli
-                      </Link>
-                      <Link
-                        href={`/${rest.slug}`}
+                        href={`/admin?slug=${rest.slug}`} className="bg-[#d4af37] hover:bg-[#e5c158] text-black text-xs font-bold py-2.5 px-3 rounded-xl text-center" > ⚙️ İdarəetmə Paneli </Link> <Link href={`/${rest.slug}`}
                         target="_blank"
                         className="bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl text-center"
                       >
