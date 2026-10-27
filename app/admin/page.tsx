@@ -6,11 +6,7 @@ import AdminPinGuard from "./AdminPinGuard";
 
 export const instant = false;
 
-export default async function AdminPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ slug?: string }>;
-}) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ slug?: string }> }) {
   const params = await searchParams;
   const activeSlug = params.slug ? params.slug : "fatullali";
   const restaurant = await db.restaurant.findUnique({
@@ -18,19 +14,19 @@ export default async function AdminPage({
     include: { categories: { include: { menuItems: true } } },
   });
 
-  if (!restaurant) {
-    return <div className="p-10 text-center text-red-600 font-bold">Restoran tapılmadı!</div>;
-  }
+  if (!restaurant) return <div className="p-10 text-center text-red-600 font-bold">Restoran tapılmadı!</div>;
   const r = restaurant as any;
 
   async function saveRest(fd: FormData) {
     "use server";
     if (!restaurant) return;
+    const nameVal = fd.get("name") as string;
+    const phoneVal = fd.get("phone") as string;
     await (db.restaurant as any).update({
       where: { id: restaurant.id },
       data: {
-        name: (fd.get("name") as string) ? (fd.get("name") as string) : restaurant.name,
-        phone: (fd.get("phone") as string) ? (fd.get("phone") as string) : restaurant.phone,
+        name: nameVal ? nameVal : restaurant.name,
+        phone: phoneVal ? phoneVal : restaurant.phone,
         subtitle: (fd.get("subtitle") as string) ?? "",
         slogan: (fd.get("slogan") as string) ?? "",
         description: (fd.get("description") as string) ?? "",
@@ -50,8 +46,8 @@ export default async function AdminPage({
   async function addCat(fd: FormData) {
     "use server";
     const name = fd.get("name") as string;
-    if (!name) return;
     if (!restaurant) return;
+    if (!name) return;
     await db.category.create({ data: { name, restaurantId: restaurant.id } });
     revalidatePath("/admin");
     revalidatePath(`/${restaurant.slug}`);
@@ -59,6 +55,7 @@ export default async function AdminPage({
 
   async function addItem(fd: FormData) {
     "use server";
+    if (!restaurant) return;
     const name = fd.get("name") as string;
     const price = parseFloat(fd.get("price") as string);
     const categoryId = fd.get("categoryId") as string;
@@ -67,7 +64,6 @@ export default async function AdminPage({
     if (!name) return;
     if (isNaN(price)) return;
     if (!categoryId) return;
-    if (!restaurant) return;
     await db.menuItem.create({
       data: {
         name,
@@ -84,6 +80,7 @@ export default async function AdminPage({
 
   async function editItem(fd: FormData) {
     "use server";
+    if (!restaurant) return;
     const id = fd.get("id") as string;
     const name = fd.get("name") as string;
     const price = parseFloat(fd.get("price") as string);
@@ -92,7 +89,6 @@ export default async function AdminPage({
     if (!id) return;
     if (!name) return;
     if (isNaN(price)) return;
-    if (!restaurant) return;
     await db.menuItem.update({
       where: { id },
       data: {
@@ -108,9 +104,9 @@ export default async function AdminPage({
 
   async function delItem(fd: FormData) {
     "use server";
+    if (!restaurant) return;
     const id = fd.get("id") as string;
     if (!id) return;
-    if (!restaurant) return;
     await db.menuItem.delete({ where: { id } });
     revalidatePath("/admin");
     revalidatePath(`/${restaurant.slug}`);
@@ -134,51 +130,15 @@ export default async function AdminPage({
 
   return (
     <AdminPinGuard>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            document.addEventListener('change',function(e){
-              var t=e.target;
-              if(!t)return;
-              if(!t.dataset.pick)return;
-              var f=t.files[0];
-              if(!f)return;
-              var box=t.closest('[data-picker="1"]');
-              var hid=box.querySelector('input[type="hidden"]');
-              var im=box.querySelector('[data-prev="1"]');
-              var r=new FileReader();
-              r.onload=function(v){
-                var i=new Image();
-                i.onload=function(){
-                  var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;
-                  if(w>h && w>m){h=Math.round(h*m/w);w=m;}
-                  else if(h>m){w=Math.round(w*m/h);h=m;}
-                  c.width=w;c.height=h;
-                  c.getContext('2d').drawImage(i,0,0,w,h);
-                  var d=c.toDataURL('image/jpeg',0.75);
-                  hid.value=d;
-                  if(im){im.src=d;im.style.display='block';}
-                };
-                i.src=v.target.result;
-              };
-              r.readAsDataURL(f);
-            });
-            document.addEventListener('click',function(e){
-              var b=e.target.closest('[data-edit-btn]');
-              if(!b)return;
-              var el=document.getElementById('edit_'+b.dataset.editBtn);
-              if(el){el.style.display=el.style.display==='none'?'block':'none';}
-            });
-          `,
-        }}
-      />
+      <script dangerouslySetInnerHTML={{ __html: `
+        document.addEventListener('change',function(e){var t=e.target;if(!t)return;if(!t.dataset.pick)return;var f=t.files[0];if(!f)return;var box=t.closest('[data-picker="1"]');var hid=box.querySelector('input[type="hidden"]');var im=box.querySelector('[data-prev="1"]');var r=new FileReader();r.onload=function(v){var i=new Image();i.onload=function(){var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;if(w>h){if(w>m){h=Math.round(h*m/w);w=m;}}else{if(h>m){w=Math.round(w*m/h);h=m;}}c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);var d=c.toDataURL('image/jpeg',0.75);hid.value=d;if(im){im.src=d;im.style.display='block';}};i.src=v.target.result;};r.readAsDataURL(f);});
+        document.addEventListener('click',function(e){var b=e.target.closest('[data-edit-btn]');if(!b)return;var el=document.getElementById('edit_'+b.dataset.editBtn);if(el){el.style.display=el.style.display==='none'?'block':'none';}});
+      `}} />
       <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm">
             <h1 className="text-xl font-bold">{restaurant.name} — İdarəetmə Paneli</h1>
-            <Link href={`/${restaurant.slug}`} target="_blank" className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm">
-              Menyuya Bax ↗
-            </Link>
+            <Link href={`/${restaurant.slug}`} target="_blank" className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm">Menyuya Bax ↗</Link>
           </div>
           <QrCodeBox slug={restaurant.slug} restaurantName={restaurant.name} />
 
@@ -200,34 +160,26 @@ export default async function AdminPage({
               <input name="address" defaultValue={r.address ? r.address : "Fətəli Xan Xoyski 98"} className={inp} />
               <input name="workingHours" defaultValue={r.workingHours ? r.workingHours : "8:00 / 23:30"} className={`${inp} md:col-span-2`} />
             </div>
-            <button type="submit" className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl">
-              💾 Restoran Məlumatlarını Yadda Saxla
-            </button>
+            <button type="submit" className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl">💾 Restoran Məlumatlarını Yadda Saxla</button>
           </form>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <form action={addCat} className="bg-white p-5 rounded-2xl shadow-sm space-y-3 h-fit">
               <h2 className="font-bold">➕ Yeni Kateqoriya Əlavə Et</h2>
               <input name="name" placeholder="Kateqoriya Adı" required className={inp} />
-              <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl">
-                Kateqoriya Yarat
-              </button>
+              <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl">Kateqoriya Yarat</button>
             </form>
             <form action={addItem} className="bg-white p-5 rounded-2xl shadow-sm space-y-3">
               <h2 className="font-bold">🍔 Yeni Məhsul Əlavə Et</h2>
               <select name="categoryId" required className={inp}>
                 <option value="">-- Kateqoriya Seçin --</option>
-                {restaurant.categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {restaurant.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <input name="name" placeholder="Məhsulun Adı" required className={inp} />
               <input type="number" step="0.01" name="price" placeholder="Qiymət (₼)" required className={inp} />
               <input name="description" placeholder="Tərkibi / Açıqlama" className={inp} />
               {picker("imageUrl", "Məhsul Şəkli")}
-              <button type="submit" className="w-full bg-zinc-900 text-white font-bold py-2.5 rounded-xl">
-                Məhsulu Menyuya Əlavə Et
-              </button>
+              <button type="submit" className="w-full bg-zinc-900 text-white font-bold py-2.5 rounded-xl">Məhsulu Menyuya Əlavə Et</button>
             </form>
           </div>
 
@@ -240,10 +192,10 @@ export default async function AdminPage({
                   <div key={it.id} className="py-2 border-b last:border-b-0 space-y-3">
                     <div className="flex justify-between items-center gap-2">
                       <div className="flex items-center gap-3">
-                        {it.imageUrl ? <img src={it.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover border" /> : null}
+                        {it.imageUrl && <img src={it.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover border" />}
                         <div>
                           <div className="font-bold">{it.name}</div>
-                          {it.description ? <div className="text-xs text-gray-500">{it.description}</div> : null}
+                          {it.description && <div className="text-xs text-gray-500">{it.description}</div>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
