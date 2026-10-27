@@ -48,7 +48,7 @@ export default async function HomePage() {
         slug,
         phone,
         pinCode: pinCode ? pinCode : "1234",
-        subtitle: subtitle ? subtitle : "RESTORAN VƏ KAFE",
+        subtitle: subtitle ? subtitle : "RESTORAN & KAFE",
         slogan: "Zövqünüzə uyğun təamlarla xidmətinizdəyik!",
         description: "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada.",
         address: address ? address : "Bakı şəhəri",
@@ -72,7 +72,7 @@ export default async function HomePage() {
   const inp = "w-full border border-zinc-700 bg-zinc-900 text-white rounded-xl px-3.5 py-2.5 text-sm";
 
   return (
-    <AdminPinGuard storageKey="master_admin_ok">
+    <AdminPinGuard storageKey="super_admin_auth">
       <div className="min-h-screen bg-[#0b0a09] text-white p-6 md:p-10">
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="border border-[#d4af37]/40 bg-[#141210] p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -84,7 +84,7 @@ export default async function HomePage() {
                 QR Menyu Platforması — Baş Admin
               </h1>
               <p className="text-xs text-zinc-400 mt-1">
-                Yeni restoranları buradan yaradın. Hər restoran öz panelindən öz brendini idarə edir.
+                Yeni restoranları və hər restoranın öz fərqli giriş şifrəsini buradan təyin edin.
               </p>
             </div>
             <div className="bg-[#1c1813] border border-[#d4af37]/30 px-4 py-2.5 rounded-xl text-center">
@@ -99,12 +99,12 @@ export default async function HomePage() {
               <input name="name" placeholder="Restoranın Adı (məs: Padişah)" required className={inp} />
               <input name="slug" placeholder="Link adı (məs: padisah)" required className={inp} />
               <input name="phone" placeholder="WhatsApp (məs: 994501234567)" required className={inp} />
-              <input name="pinCode" placeholder="Restoran PİN Şifrəsi (məs: 1234)" required className={inp} />
-              <input name="subtitle" placeholder="Mətbəx (məs: Milli Mətbəx)" className={inp} />
-              <input name="address" placeholder="Ünvan (məs: Bakı ş.)" className={inp} />
+              <input name="pinCode" placeholder="🔑 Bu Restoranın Öz Şifrəsi (məs: 4455)" required className={inp} />
+              <input name="subtitle" placeholder="Mətbəx (məs: Milli və Avropa Mətbəxi)" className={inp} />
+              <input name="address" placeholder="Ünvan (məs: Nərimanov r.)" className={inp} />
             </div>
             <button type="submit" className="w-full bg-[#d4af37] hover:bg-[#e5c158] text-black font-bold py-3 rounded-xl transition">
-              🚀 Yeni Restoranı və Özəl Panelini Yarat
+              🚀 Yeni Restoranı Öz Şifrəsi İlə Yarat
             </button>
           </form>
 
@@ -127,7 +127,7 @@ export default async function HomePage() {
                         <div>
                           <h3 className="text-lg font-bold text-white">{rest.name}</h3>
                           <p className="text-xs text-[#d4af37]">
-                            Link: /{rest.slug} · 🔑 PİN: {r.pinCode ? r.pinCode : "1234"}
+                            /{rest.slug} · 🔑 Şifrə: <strong>{r.pinCode ? r.pinCode : "1234"}</strong>
                           </p>
                           <p className="text-xs text-zinc-400 mt-0.5">
                             {rest.categories.length} kateqoriya · 📞 {rest.phone}
