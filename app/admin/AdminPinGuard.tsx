@@ -1,107 +1,103 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-interface ImagePickerProps {
-  name: string;
-  defaultValue?: string;
-  placeholder?: string;
-  compact?: boolean;
-}
+const MASTER_PIN = "05230715";
 
-export default function ImagePickerInput({
-  name,
-  defaultValue = "",
-  placeholder = "Şəkil seçin və ya link yapışdırın...",
-  compact = false,
-}: ImagePickerProps) {
-  const [value, setValue] = useState(defaultValue);
-  const [loading, setLoading] = useState(false);
+export default function AdminPinGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    const saved = sessionStorage.getItem("qr_admin_auth");
+    if (saved === "ok") {
+      setUnlocked(true);
+    }
+    setChecked(true);
+  }, []);
 
-    setLoading(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxSize = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height && width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else if (height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.78);
-        setValue(compressedDataUrl);
-        setLoading(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin === MASTER_PIN) {
+      sessionStorage.setItem("qr_admin_auth", "ok");
+      setUnlocked(true);
+      setError(false);
+    } else {
+      setError(true);
+      setPin("");
+    }
   };
 
-  return (
-    <div className="space-y-2">
-      <input type="hidden" name={name} value={value} />
+  const handleLogout = () => {
+    sessionStorage.removeItem("qr_admin_auth");
+    setUnlocked(false);
+    setPin("");
+  };
 
-      <div className="flex items-center gap-2">
-        <label className="cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-medium px-3.5 py-2 rounded-xl text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5">
-          <span>📁 {loading ? "Yüklənir..." : "Qalereyadan Şəkil Seç"}</span>
+  if (!checked) return null;
+
+  if (!unlocked) {
+    return (
+      <div className="min-h-screen bg-[#0b0a09] flex items-center justify-center p-4">
+        <form
+          onSubmit={handleLogin}
+          className="bg-[#141210] border border-[#d4af37]/40 p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center space-y-5"
+        >
+          <div className="w-16 h-16 mx-auto rounded-full border-2 border-[#d4af37] bg-[#1c1812] flex items-center justify-center text-2xl">
+            🔒
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[#e5c158]">İdarəetmə Paneli</h1>
+            <p className="text-xs text-zinc-400 mt-1">
+              Daxil olmaq üçün PİN şifrənizi yazın
+            </p>
+          </div>
+
           <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="••••"
+            required
+            className="w-full text-center text-xl tracking-widest bg-zinc-900 border border-[#d4af37]/40 text-white rounded-xl py-3 px-4 focus:outline-none"
           />
-        </label>
 
-        {!compact && (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={placeholder}
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"
-          />
-        )}
+          {error && (
+            <p className="text-xs text-red-400 font-semibold">
+              ❌ Yanlış PİN şifrəsi! Yenidən cəhd edin.
+            </p>
+          )}
 
-        {value && (
           <button
-            type="button"
-            onClick={() => setValue("")}
-            className="text-xs text-red-500 hover:underline shrink-0"
+            type="submit"
+            className="w-full bg-[#d4af37] hover:bg-[#e5c158] text-black font-bold py-3 rounded-xl transition"
           >
-            Təmizlə
+            Daxil Ol →
           </button>
-        )}
+        </form>
       </div>
+    );
+  }
 
-      {value && (
-        <div className="flex items-center gap-2">
-          <img
-            src={value}
-            alt="Önizləmə"
-            className="w-14 h-14 rounded-lg object-cover border border-amber-400"
-          />
-          <span className="text-xs text-emerald-600 font-medium">
-            ✓ Şəkil hazırdır
-          </span>
-        </div>
-      )}
+  return (
+    <div>
+      <div className="bg-zinc-900 text-zinc-300 text-xs px-4 py-2 flex justify-between items-center border-b border-zinc-800">
+        <span>🛡️ İdarəetmə Rejimi Aktivdir</span>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="bg-red-600/20 hover:bg-red-600/40 text-red-300 px-3 py-1 rounded-lg font-semibold transition"
+        >
+          🔒 Paneli Kilidlə (Çıxış)
+        </button>
+      </div>
+      {children}
     </div>
   );
 }
