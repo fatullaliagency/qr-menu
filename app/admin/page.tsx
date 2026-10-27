@@ -1,68 +1,188 @@
-"use client";
+import { db } from "@/app/lib/db";
+import { revalidatePath } from "next/cache";
+import Link from "next/link";
+import QrCodeBox from "./QrCodeBox";
+import AdminPinGuard from "./AdminPinGuard";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+export const instant = false;
 
-// --- TELEFON GALERİSİ VE BİLGİSAYARDAN FOTOĞRAF SEÇME BİLEŞENİ ---
-function ImagePicker({
-  label,
-  value,
-  onChange,
-  helperText,
-}: {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  helperText?: string;
-}) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ slug?: string }> }) {
+  const params = await searchParams;
+  const activeSlug = params.slug || "fatullali";
+  const restaurant = await db.restaurant.findUnique({
+    where: { slug: activeSlug },
+    include: { categories: { include: { menuItems: true } } },
+  });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Vercel ve veritabanı performansı için fotoğrafı otomatik optimize eder (Max 800px)
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
-        canvas.height = img.width > MAX_WIDTH ? img.height * scaleSize : img.height;
+  if (!restaurant) return <div className="p-10 text-center text-red-600 font-bold">Tapılmadı!</div>;
+  const r = restaurant as any;
 
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  async function saveRest(fd: FormData) {
+    "use server";
+    if (!restaurant) return;
+    await (db.restaurant as any).update({
+      where: { id: restaurant.id },
+      data: {
+        name: (fd.get("name") as string) || restaurant.name,
+        phone: (fd.get("phone") as string) || restaurant.phone,
+        subtitle: (fd.get("subtitle") as string) || "",
+        slogan: (fd.get("slogan") as string) || "",
+        description: (fd.get("description") as string) || "",
+        logoUrl: (fd.get("logoUrl") as string) || "",
+        bgImageUrl: (fd.get("bgImageUrl") as string) || "",
+        heroFoodUrl: (fd.get("heroFoodUrl") as string) || "",
+        wifiName: (fd.get("wifiName") as string) || "",
+        wifiPassword: (fd.get("wifiPassword") as string) || "",
+        address: (fd.get("address") as string) || "",
+        workingHours: (fd.get("workingHours") as string) || "",
+      },
+    });
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant.slug}`);
+  }
 
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-        onChange(dataUrl);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
+  async function addCat(fd: FormData) {
+    "use server";
+    const name = fd.get("name") as string;
+    if (name && restaurant) await db.category.create({ data: { name, restaurantId: restaurant.id } });
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant?.slug}`);
+  }
+
+  async function addItem(fd: FormData) {
+    "use server";
+    const name = fd.get("name") as string;
+    const price = parseFloat(fd.get("price") as string);
+    const categoryId = fd.get("categoryId") as string;
+    if (!name || isNaN(price) || !categoryId || !restaurant) return;
+    await db.menuItem.create({
+      data: { name, price, description: (fd.get("description") as string) || null, imageUrl: (fd.get("imageUrl") as string) || null, categoryId, restaurantId: restaurant.id },
+    });
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant.slug}`);
+  }
+
+  async function editItem(fd: FormData) {
+    "use server";
+    const id = fd.get("id") as string;
+    const name = fd.get("name") as string;
+    const price = parseFloat(fd.get("price") as string);
+    if (!id || !name || isNaN(price) || !restaurant) return;
+    await db.menuItem.update({
+      where: { id },
+      data: { name, price, description: (fd.get("description") as string) || null, imageUrl: (fd.get("imageUrl") as string) || null },
+    });
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant.slug}`);
+  }
+
+  async function delItem(fd: FormData) {
+    "use server";
+    const id = fd.get("id") as string;
+    if (id && restaurant) await db.menuItem.delete({ where: { id } });
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant?.slug}`);
+  }
+
+  const picker = (name: string, label: string, val?: string | null) => (
+    <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
+      <input type="hidden" name={name} defaultValue={val || ""} />
+      <div className="flex items-center gap-2">
+        <img src={val || undefined} style={{ display: val ? "block" : "none" }} className="w-11 h-11 rounded-lg object-cover border" data-prev="1" />
+        <span className="text-xs font-bold text-zinc-800">{label}</span>
+      </div>
+      <label className="cursor-pointer bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">
+        📷 Qalereyadan Seç
+        <input type="file" accept="image/*" data-pick="1" className="hidden" />
+      </label>
+    </div>
+  );
+
+  const inp = "w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white";
 
   return (
-    <div className="flex flex-col">
-      <label className="text-xs font-medium text-gray-600 mb-1.5">{label}</label>
-      <div className="flex items-center gap-3">
-        <label className="cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm w-full">
-          <span>📷 Qalereyadan / Cihazdan Şəkil Seç</span>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
+    <AdminPinGuard>
+      <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('change',function(e){var t=e.target;if(!t||!t.dataset.pick)return;var f=t.files[0];if(!f)return;var box=t.closest('div.p-2\\\\.5');var hid=box.querySelector('input[type=hidden]');var im=box.querySelector('img[data-prev]');var r=new FileReader();r.onload=function(v){var i=new Image();i.onload=function(){var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;if(w>h&&w>m){h=Math.round(h*m/w);w=m;}else if(h>m){w=Math.round(w*m/h);h=m;}c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);var d=c.toDataURL('image/jpeg',0.75);hid.value=d;if(im){im.src=d;im.style.display='block';}};i.src=v.target.result;};r.readAsDataURL(f);});` }} />
+      <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm">
+            <h1 className="text-xl font-bold">{restaurant.name} — İdarəetmə Paneli</h1>
+            <Link href={`/${restaurant.slug}`} target="_blank" className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm">Menyuya Bax ↗</Link>
+          </div>
+          <QrCodeBox slug={restaurant.slug} restaurantName={restaurant.name} />
 
-        {value && (
-          <div className="relative h-11 w-11 shrink-0 rounded-lg overflow-hidden border border-gray-300 shadow-sm bg-gray-50">
-            <img src={value} alt="Önizləmə" className="h-full w-full object-cover" />
-            <button
-              type="button"
-              onClick={() => onChange("")}
-              className="absolute top-0 right-0 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-bl hover:bg-red-700"
-              title="Şəkli sil"
-            >
-              ✕
-            </button>
+          <form action={saveRest} className="bg-white p-5 rounded-2xl shadow-sm border border-amber-200 space-y-3">
+            <h2 className="font-bold text-lg">👑 Loqo, Arxa Plan və Restoran Məlumatları</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {picker("logoUrl", "1. Loqo Şəkli", r.logoUrl)}
+              {picker("bgImageUrl", "2. Arxa Plan", r.bgImageUrl)}
+              {picker("heroFoodUrl", "3. Telefon İçi Şəkil", r.heroFoodUrl)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <input name="name" defaultValue={r.name} placeholder="Restoran Adı" className={inp} />
+              <input name="subtitle" defaultValue={r.subtitle || "TÜRKİYƏ · AVROPA · MİLLİ MƏTBƏXİ"} className={inp} />
+              <input name="slogan" defaultValue={r.slogan || "Zövqünüzə uyğun təamlarla xidmətinizdəyik!"} className={inp} />
+              <input name="description" defaultValue={r.description || "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada."} className={inp} />
+              <input name="wifiName" defaultValue={r.wifiName || "Fatullali 1"} className={inp} />
+              <input name="wifiPassword" defaultValue={r.wifiPassword || "Fatullali12345"} className={inp} />
+              <input name="phone" defaultValue={r.phone} className={inp} />
+              <input name="address" defaultValue={r.address || "Fətəli Xan Xoyski 98"} className={inp} />
+              <input name="workingHours" defaultValue={r.workingHours || "8:00 / 23:30"} className={`${inp} md:col-span-2`} />
+            </div>
+            <button type="submit" className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl">💾 Yadda Saxla</button>
+          </form>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form action={addCat} className="bg-white p-5 rounded-2xl shadow-sm space-y-3 h-fit">
+              <h2 className="font-bold">➕ Yeni Kateqoriya</h2>
+              <input name="name" placeholder="Kateqoriya Adı" required className={inp} />
+              <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl">Yarat</button>
+            </form>
+            <form action={addItem} className="bg-white p-5 rounded-2xl shadow-sm space-y-3">
+              <h2 className="font-bold">🍔 Yeni Məhsul Əlavə Et</h2>
+              <select name="categoryId" required className={inp}>
+                <option value="">-- Kateqoriya Seçin --</option>
+                {restaurant.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <input name="name" placeholder="Məhsulun Adı" required className={inp} />
+              <input type="number" step="0.01" name="price" placeholder="Qiymət (₼)" required className={inp} />
+              <input name="description" placeholder="Tərkibi" className={inp} />
+              {picker("imageUrl", "Məhsulun Şəkli")}
+              <button type="submit" className="w-full bg-zinc-900 text-white font-bold py-2.5 rounded-xl">Əlavə Et</button>
+            </form>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm space-y-4">
+            <h2 className="font-bold text-lg">📋 Mövcud Menyunu Düzənlə</h2>
+            {restaurant.categories.map((cat) => (
+              <div key={cat.id} className="border rounded-xl p-3 space-y-3">
+                <h3 className="font-bold border-b pb-1">{cat.name}</h3>
+                {cat.menuItems.map((it) => (
+                  <div key={it.id} className="bg-gray-50 p-3 rounded-xl border space-y-2">
+                    <form action={editItem} className="space-y-2">
+                      <input type="hidden" name="id" value={it.id} />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input name="name" defaultValue={it.name} className={inp} />
+                        <input type="number" step="0.01" name="price" defaultValue={it.price} className={inp} />
+                        <input name="description" defaultValue={it.description || ""} placeholder="Tərkibi" className={inp} />
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex-1">{picker("imageUrl", "Şəkil", it.imageUrl)}</div>
+                        <button type="submit" className="bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl">💾 Dəyiş</button>
+                      </div>
+                    </form>
+                    <form action={delItem} className="text-right">
+                      <input type="hidden" name="id" value={it.id} />
+                      <button type="submit" className="text-red-500 text-xs font-bold">🗑 Sil</button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </AdminPinGuard>
+  );
+}
+// SON
