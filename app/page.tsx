@@ -23,6 +23,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const n = fd.get("name") as string;
     const p = fd.get("phone") as string;
     const pin = fd.get("pinCode") as string;
+    const logo = fd.get("logoUrl") as string;
+    const bg = fd.get("bgImageUrl") as string;
+    const hero = fd.get("heroFoodUrl") as string;
+
     await (db.restaurant as any).update({
       where: { id: restaurant.id },
       data: {
@@ -32,9 +36,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         subtitle: (fd.get("subtitle") as string) ?? "",
         slogan: (fd.get("slogan") as string) ?? "",
         description: (fd.get("description") as string) ?? "",
-        logoUrl: (fd.get("logoUrl") as string) ?? "",
-        bgImageUrl: (fd.get("bgImageUrl") as string) ?? "",
-        heroFoodUrl: (fd.get("heroFoodUrl") as string) ?? "",
+        logoUrl: logo ? logo : r.logoUrl,
+        bgImageUrl: bg ? bg : r.bgImageUrl,
+        heroFoodUrl: hero ? hero : r.heroFoodUrl,
         wifiName: (fd.get("wifiName") as string) ?? "",
         wifiPassword: (fd.get("wifiPassword") as string) ?? "",
         address: (fd.get("address") as string) ?? "",
@@ -114,12 +118,35 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     revalidatePath(`/${restaurant.slug}`);
   }
 
+  async function cleanDuplicates() {
+    "use server";
+    if (!restaurant) return;
+    const seen = new Set<string>();
+    for (const cat of restaurant.categories) {
+      for (const item of cat.menuItems) {
+        const key = `${cat.id}_${item.name.trim().toLowerCase()}`;
+        if (seen.has(key)) {
+          await db.menuItem.delete({ where: { id: item.id } });
+        } else {
+          seen.add(key);
+        }
+      }
+    }
+    revalidatePath("/admin");
+    revalidatePath(`/${restaurant.slug}`);
+  }
+
   const picker = (name: string, label: string, val?: any) => (
     <div data-picker="1" className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
       <input type="hidden" name={name} defaultValue={val ? val : ""} />
       <div className="flex items-center gap-2">
-        <img src={val ? val : undefined} style={{ display: val ? "block" : "none" }} className="w-11 h-11 rounded-lg object-cover border" data-prev="1" />
-        <span className="text-xs font-bold text-zinc-800">{label}</span>
+        <img src={val ? val : undefined} style={{ display: val ? "block" : "none" }} className="w-12 h-12 rounded-lg object-cover border" data-prev="1" />
+        <div>
+          <span className="text-xs font-bold text-zinc-800 block">{label}</span>
+          <span data-status="1" className="text-[11px] text-emerald-600 font-semibold">
+            {val ? "✓ Şəkil var" : "Şəkil seçilməyib"}
+          </span>
+        </div>
       </div>
       <label className="cursor-pointer bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">
         📷 Qalereyadan Seç
@@ -132,15 +159,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <AdminPinGuard restaurantPin={r.pinCode ? r.pinCode : "1234"} storageKey={`auth_${restaurant.slug}`}>
-      <script dangerouslySetInnerHTML={{ __html: `
-        document.addEventListener('change',function(e){var t=e.target;if(!t)return;if(!t.dataset.pick)return;var f=t.files[0];if(!f)return;var box=t.closest('[data-picker="1"]');var hid=box.querySelector('input[type="hidden"]');var im=box.querySelector('[data-prev="1"]');var r=new FileReader();r.onload=function(v){var i=new Image();i.onload=function(){var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;if(w>h){if(w>m){h=Math.round(h*m/w);w=m;}}else{if(h>m){w=Math.round(w*m/h);h=m;}}c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);var d=c.toDataURL('image/jpeg',0.75);hid.value=d;if(im){im.src=d;im.style.display='block';}};i.src=v.target.result;};r.readAsDataURL(f);});
-        document.addEventListener('click',function(e){var b=e.target.closest('[data-edit-btn]');if(!b)return;var el=document.getElementById('edit_'+b.dataset.editBtn);if(el){el.style.display=el.style.display==='none'?'block':'none';}});
-      `}} />
       <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm">
-            <h1 className="text-xl font-bold">{restaurant.name} — İdarəetmə Paneli</h1>
-            <Link href={`/${restaurant.slug}`} target="_blank" className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm">Menyuya Bax ↗</Link>
+            <h1 className="text-lg md:text-xl font-bold">{restaurant.name} — İdarəetmə Paneli</h1>
+            <Link href={`/${restaurant.slug}`} target="_blank" className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-xs md:text-sm shrink-0">
+              Menyuya Bax ↗
+            </Link>
           </div>
           <QrCodeBox slug={restaurant.slug} restaurantName={restaurant.name} />
 
@@ -153,7 +178,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <input name="name" defaultValue={r.name} placeholder="Restoran Adı" className={inp} />
-              <input name="pinCode" defaultValue={r.pinCode ? r.pinCode : "1234"} placeholder="🔑 Bu Restoranın PİN Şifrəsi" className={inp} />
+              <input name="pinCode" defaultValue={r.pinCode ? r.pinCode : "1234"} placeholder="🔑 PİN Şifrəsi" className={inp} />
               <input name="subtitle" defaultValue={r.subtitle ? r.subtitle : "TÜRKİYƏ · AVROPA · MİLLİ MƏTBƏXİ"} className={inp} />
               <input name="slogan" defaultValue={r.slogan ? r.slogan : "Zövqünüzə uyğun təamlarla xidmətinizdəyik!"} className={inp} />
               <input name="description" defaultValue={r.description ? r.description : "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada."} className={inp} />
@@ -163,7 +188,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <input name="address" defaultValue={r.address ? r.address : "Fətəli Xan Xoyski 98"} className={inp} />
               <input name="workingHours" defaultValue={r.workingHours ? r.workingHours : "8:00 / 23:30"} className={`${inp} md:col-span-2`} />
             </div>
-            <button type="submit" className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl">💾 Restoran Məlumatlarını və PİN Şifrəni Yadda Saxla</button>
+            <button type="submit" className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl">
+              💾 Loqo, Arxa Plan və Məlumatları Yadda Saxla
+            </button>
           </form>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -187,35 +214,44 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow-sm space-y-4">
-            <h2 className="font-bold text-lg">📋 Mövcud Menyu Siyahısı</h2>
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <h2 className="font-bold text-lg">📋 Mövcud Menyu Siyahısı</h2>
+              <form action={cleanDuplicates}>
+                <button type="submit" className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-3 py-2 rounded-xl">
+                  🧹 Təkrarlanan Məhsulları Təmizlə
+                </button>
+              </form>
+            </div>
+
             {restaurant.categories.map((cat) => (
               <div key={cat.id} className="border rounded-xl p-4 space-y-3">
                 <h3 className="font-bold text-lg border-b pb-2">{cat.name}</h3>
                 {cat.menuItems.map((it) => (
-                  <div key={it.id} className="py-2 border-b last:border-b-0 space-y-3">
-                    <div className="flex justify-between items-center gap-2">
-                      <div className="flex items-center gap-3">
-                        {it.imageUrl && <img src={it.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover border" />}
-                        <div>
-                          <div className="font-bold">{it.name}</div>
-                          {it.description && <div className="text-xs text-gray-500">{it.description}</div>}
+                  <div key={it.id} className="py-3 border-b last:border-b-0">
+                    <input type="checkbox" id={`edit_${it.id}`} className="peer hidden" />
+                    <div className="flex justify-between items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {it.imageUrl && <img src={it.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover border shrink-0" />}
+                        <div className="min-w-0">
+                          <div className="font-bold text-zinc-900 truncate">{it.name}</div>
+                          <div className="font-bold text-emerald-600 text-sm">{it.price.toFixed(2)} ₼</div>
+                          {it.description && <div className="text-xs text-gray-500 truncate">{it.description}</div>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-emerald-600 mr-1">{it.price.toFixed(2)} ₼</span>
-                        <button type="button" data-edit-btn={it.id} className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label htmlFor={`edit_${it.id}`} className="cursor-pointer bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl">
                           ✏️ Düzənlə
-                        </button>
+                        </label>
                         <form action={delItem}>
                           <input type="hidden" name="id" value={it.id} />
-                          <button type="submit" className="bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold px-3 py-1.5 rounded-lg">
+                          <button type="submit" className="bg-red-100 text-red-600 hover:bg-red-200 text-xs font-bold px-3 py-2 rounded-xl">
                             Sil
                           </button>
                         </form>
                       </div>
                     </div>
 
-                    <form id={`edit_${it.id}`} action={editItem} style={{ display: "none" }} className="bg-gray-50 p-3 rounded-xl border space-y-2">
+                    <form action={editItem} className="hidden peer-checked:block mt-3 bg-gray-50 p-3 rounded-xl border space-y-2">
                       <input type="hidden" name="id" value={it.id} />
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <input name="name" defaultValue={it.name} placeholder="Məhsul adı" className={inp} />
