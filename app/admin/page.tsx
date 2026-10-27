@@ -6,6 +6,17 @@ import AdminPinGuard from "./AdminPinGuard";
 
 export const instant = false;
 
+async function pickImg(fd: FormData, fileKey: string, urlKey: string) {
+  const txt = (fd.get(urlKey) as string) ?? "";
+  const f = fd.get(fileKey) as File;
+  if (f && f.size > 0) {
+    const buf = Buffer.from(await f.arrayBuffer());
+    const mime = f.type ? f.type : "image/jpeg";
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  }
+  return txt;
+}
+
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ slug?: string }> }) {
   const params = await searchParams;
   const activeSlug = params.slug ? params.slug : "fatullali";
@@ -20,19 +31,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   async function saveRest(fd: FormData) {
     "use server";
     if (!restaurant) return;
-    const nameVal = fd.get("name") as string;
-    const phoneVal = fd.get("phone") as string;
+    const n = fd.get("name") as string;
+    const p = fd.get("phone") as string;
+    const logoUrl = await pickImg(fd, "logoFile", "logoUrl");
+    const bgImageUrl = await pickImg(fd, "bgFile", "bgImageUrl");
+    const heroFoodUrl = await pickImg(fd, "heroFile", "heroFoodUrl");
     await (db.restaurant as any).update({
       where: { id: restaurant.id },
       data: {
-        name: nameVal ? nameVal : restaurant.name,
-        phone: phoneVal ? phoneVal : restaurant.phone,
+        name: n ? n : restaurant.name,
+        phone: p ? p : restaurant.phone,
         subtitle: (fd.get("subtitle") as string) ?? "",
         slogan: (fd.get("slogan") as string) ?? "",
         description: (fd.get("description") as string) ?? "",
-        logoUrl: (fd.get("logoUrl") as string) ?? "",
-        bgImageUrl: (fd.get("bgImageUrl") as string) ?? "",
-        heroFoodUrl: (fd.get("heroFoodUrl") as string) ?? "",
+        logoUrl,
+        bgImageUrl,
+        heroFoodUrl,
         wifiName: (fd.get("wifiName") as string) ?? "",
         wifiPassword: (fd.get("wifiPassword") as string) ?? "",
         address: (fd.get("address") as string) ?? "",
@@ -60,7 +74,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const price = parseFloat(fd.get("price") as string);
     const categoryId = fd.get("categoryId") as string;
     const desc = fd.get("description") as string;
-    const img = fd.get("imageUrl") as string;
+    const img = await pickImg(fd, "imageFile", "imageUrl");
     if (!name) return;
     if (isNaN(price)) return;
     if (!categoryId) return;
@@ -85,7 +99,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const name = fd.get("name") as string;
     const price = parseFloat(fd.get("price") as string);
     const desc = fd.get("description") as string;
-    const img = fd.get("imageUrl") as string;
+    const img = await pickImg(fd, "imageFile", "imageUrl");
     if (!id) return;
     if (!name) return;
     if (isNaN(price)) return;
@@ -112,16 +126,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     revalidatePath(`/${restaurant.slug}`);
   }
 
-  const picker = (name: string, label: string, val?: any) => (
+  const picker = (urlName: string, fileName: string, label: string, val?: any) => (
     <div data-picker="1" className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
-      <input type="hidden" name={name} defaultValue={val ? val : ""} />
+      <input type="hidden" name={urlName} defaultValue={val ? val : ""} />
       <div className="flex items-center gap-2">
         <img src={val ? val : undefined} style={{ display: val ? "block" : "none" }} className="w-11 h-11 rounded-lg object-cover border" data-prev="1" />
         <span className="text-xs font-bold text-zinc-800">{label}</span>
       </div>
       <label className="cursor-pointer bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">
         📷 Qalereyadan Seç
-        <input type="file" accept="image/*" data-pick="1" className="hidden" />
+        <input type="file" name={fileName} accept="image/*" data-pick="1" className="hidden" />
       </label>
     </div>
   );
@@ -131,8 +145,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   return (
     <AdminPinGuard>
       <script dangerouslySetInnerHTML={{ __html: `
-        document.addEventListener('change',function(e){var t=e.target;if(!t)return;if(!t.dataset.pick)return;var f=t.files[0];if(!f)return;var box=t.closest('[data-picker="1"]');var hid=box.querySelector('input[type="hidden"]');var im=box.querySelector('[data-prev="1"]');var r=new FileReader();r.onload=function(v){var i=new Image();i.onload=function(){var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;if(w>h){if(w>m){h=Math.round(h*m/w);w=m;}}else{if(h>m){w=Math.round(w*m/h);h=m;}}c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);var d=c.toDataURL('image/jpeg',0.75);hid.value=d;if(im){im.src=d;im.style.display='block';}};i.src=v.target.result;};r.readAsDataURL(f);});
-        document.addEventListener('click',function(e){var b=e.target.closest('[data-edit-btn]');if(!b)return;var el=document.getElementById('edit_'+b.dataset.editBtn);if(el){el.style.display=el.style.display==='none'?'block':'none';}});
+        document.addEventListener('change',function(e){var t=e.target;if(!t)return;if(!t.dataset.pick)return;var f=t.files[0];if(!f)return;var box=t.closest('[data-picker="1"]');var hid=box.querySelector('input[type="hidden"]');var im=box.querySelector('[data-prev="1"]');var r=new FileReader();r.onload=function(v){var i=new Image();i.onload=function(){var c=document.createElement('canvas'),m=700,w=i.width,h=i.height;if(w>h){if(w>m){h=Math.round(h*m/w);w=m;}}else{if(h>m){w=Math.round(w*m/h);h=m;}}c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);var d=c.toDataURL('image/jpeg',0.75);hid.value=d;t.value='';if(im){im.src=d;im.style.display='block';}};i.src=v.target.result;};r.readAsDataURL(f);});
       `}} />
       <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
         <div className="max-w-4xl mx-auto space-y-6">
@@ -145,9 +158,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <form action={saveRest} className="bg-white p-5 rounded-2xl shadow-sm border border-amber-200 space-y-3">
             <h2 className="font-bold text-lg">👑 Loqo, Arxa Plan və Restoran Məlumatları</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              {picker("logoUrl", "1. Loqo Şəkli", r.logoUrl)}
-              {picker("bgImageUrl", "2. Arxa Plan", r.bgImageUrl)}
-              {picker("heroFoodUrl", "3. Vitrin Şəkli", r.heroFoodUrl)}
+              {picker("logoUrl", "logoFile", "1. Loqo Şəkli", r.logoUrl)}
+              {picker("bgImageUrl", "bgFile", "2. Arxa Plan", r.bgImageUrl)}
+              {picker("heroFoodUrl", "heroFile", "3. Vitrin Şəkli", r.heroFoodUrl)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <input name="name" defaultValue={r.name} placeholder="Restoran Adı" className={inp} />
@@ -178,7 +191,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <input name="name" placeholder="Məhsulun Adı" required className={inp} />
               <input type="number" step="0.01" name="price" placeholder="Qiymət (₼)" required className={inp} />
               <input name="description" placeholder="Tərkibi / Açıqlama" className={inp} />
-              {picker("imageUrl", "Məhsul Şəkli")}
+              {picker("imageUrl", "imageFile", "Məhsul Şəkli")}
               <button type="submit" className="w-full bg-zinc-900 text-white font-bold py-2.5 rounded-xl">Məhsulu Menyuya Əlavə Et</button>
             </form>
           </div>
@@ -189,7 +202,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <div key={cat.id} className="border rounded-xl p-4 space-y-3">
                 <h3 className="font-bold text-lg border-b pb-2">{cat.name}</h3>
                 {cat.menuItems.map((it) => (
-                  <div key={it.id} className="py-2 border-b last:border-b-0 space-y-3">
+                  <div key={it.id} className="py-2.5 border-b last:border-b-0">
+                    <input type="checkbox" id={`edit_${it.id}`} className="peer hidden" />
                     <div className="flex justify-between items-center gap-2">
                       <div className="flex items-center gap-3">
                         {it.imageUrl && <img src={it.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover border" />}
@@ -198,11 +212,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                           {it.description && <div className="text-xs text-gray-500">{it.description}</div>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="font-bold text-emerald-600 mr-1">{it.price.toFixed(2)} ₼</span>
-                        <button type="button" data-edit-btn={it.id} className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                        <label htmlFor={`edit_${it.id}`} className="cursor-pointer bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
                           ✏️ Düzənlə
-                        </button>
+                        </label>
                         <form action={delItem}>
                           <input type="hidden" name="id" value={it.id} />
                           <button type="submit" className="bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold px-3 py-1.5 rounded-lg">
@@ -212,14 +226,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       </div>
                     </div>
 
-                    <form id={`edit_${it.id}`} action={editItem} style={{ display: "none" }} className="bg-gray-50 p-3 rounded-xl border space-y-2">
+                    <form action={editItem} className="hidden peer-checked:block mt-3 bg-gray-50 p-3 rounded-xl border space-y-2">
                       <input type="hidden" name="id" value={it.id} />
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <input name="name" defaultValue={it.name} placeholder="Məhsul adı" className={inp} />
                         <input type="number" step="0.01" name="price" defaultValue={it.price} placeholder="Qiymət" className={inp} />
                         <input name="description" defaultValue={it.description ? it.description : ""} placeholder="Tərkibi" className={inp} />
                       </div>
-                      {picker("imageUrl", "Yeni Şəkil Seç", it.imageUrl)}
+                      {picker("imageUrl", "imageFile", "Yeni Şəkil Seç", it.imageUrl)}
                       <button type="submit" className="w-full bg-emerald-600 text-white text-xs font-bold py-2.5 rounded-xl">
                         💾 Dəyişiklikləri Yadda Saxla
                       </button>
