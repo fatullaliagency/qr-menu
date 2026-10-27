@@ -1,151 +1,170 @@
 import { db } from "@/app/lib/db";
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import AdminPinGuard from "./admin/AdminPinGuard";
+
 export const instant = false;
-export default async function PlatformHome() {
-  // Sistemde kayıtlı olan tüm restoranları çekiyoruz
+
+function makeSlug(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/ə/g, "e")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export default async function HomePage() {
   const restaurants = await db.restaurant.findMany({
-    orderBy: { createdAt: "desc" },
+    include: { categories: { include: { menuItems: true } } },
+    orderBy: { name: "asc" },
   });
 
-  // Yeni Restoran Kayıt Fonksiyonu (Server Action)
-  async function createRestaurant(formData: FormData) {
+  async function createRestaurant(fd: FormData) {
     "use server";
-    const name = formData.get("name") as string;
-    const rawSlug = formData.get("slug") as string;
-    const phone = formData.get("phone") as string;
+    const name = (fd.get("name") as string) ?? "";
+    const rawSlug = (fd.get("slug") as string) ?? "";
+    const phone = (fd.get("phone") as string) ?? "";
+    const pinCode = (fd.get("pinCode") as string) ?? "1234";
+    const subtitle = (fd.get("subtitle") as string) ?? "";
+    const address = (fd.get("address") as string) ?? "";
 
-    if (!name || !rawSlug || !phone) return;
+    const slug = makeSlug(rawSlug ? rawSlug : name);
+    if (!name) return;
+    if (!slug) return;
+    if (!phone) return;
 
-    // URL adresini (slug) temiz ve uygun hale getiriyoruz (örn: "Fatullali Restoran" -> "fatullali-restoran")
-    const slug = rawSlug
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-");
+    const existing = await db.restaurant.findUnique({ where: { slug } });
+    if (existing) return;
 
-    const existing = await db.restaurant.findUnique({
-      where: { slug },
+    await (db.restaurant as any).create({
+      data: {
+        name,
+        slug,
+        phone,
+        pinCode: pinCode ? pinCode : "1234",
+        subtitle: subtitle ? subtitle : "RESTORAN VƏ KAFE",
+        slogan: "Zövqünüzə uyğun təamlarla xidmətinizdəyik!",
+        description: "Dad, keyfiyyət və qonaqpərvərlik hər zaman bir arada.",
+        address: address ? address : "Bakı şəhəri",
+        workingHours: "09:00 / 23:30",
+      },
     });
 
-    if (!existing) {
-      await db.restaurant.create({
-        data: {
-          name,
-          slug,
-          phone,
-        },
-      });
-    }
-
-    // Kayıt biter bitmez yeni restoranın kendi yönetim paneline yönlendir
-    redirect(`/admin?slug=${slug}`);
+    revalidatePath("/");
   }
 
+  async function deleteRestaurant(fd: FormData) {
+    "use server";
+    const id = (fd.get("id") as string) ?? "";
+    if (!id) return;
+    await db.menuItem.deleteMany({ where: { restaurantId: id } });
+    await db.category.deleteMany({ where: { restaurantId: id } });
+    await db.restaurant.delete({ where: { id } });
+    revalidatePath("/");
+  }
+
+  const inp = "w-full border border-zinc-700 bg-zinc-900 text-white rounded-xl px-3.5 py-2.5 text-sm";
+
   return (
-    <div className="min-h-screen bg-zinc-900 text-white p-6 md:p-12 flex flex-col items-center justify-center">
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-        {/* Sol Taraf: Tanıtım */}
-        <div className="space-y-6">
-          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-semibold">
-            🚀 SaaS QR Menyu Platforması
-          </span>
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight">
-            Restoranınızı rəqəmsal dünyaya daşıyın
-          </h1>
-          <p className="text-zinc-400 text-lg">
-            Saniyələr içində öz QR menyunuzu yaradın, məhsullarınızı əlavə edin və WhatsApp üzərindən birbaşa sifariş qəbul etməyə başlayın.
-          </p>
-
-          {/* Mevcut Restoranlar Listesi */}
-          {restaurants.length > 0 && (
-            <div className="pt-4 border-t border-zinc-800">
-              <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-3">
-                Sistemdəki Aktiv Restoranlar:
+    <AdminPinGuard storageKey="master_admin_ok">
+      <div className="min-h-screen bg-[#0b0a09] text-white p-6 md:p-10">
+        <div className="max-w-5xl mx-auto space-y-8">
+          <div className="border border-[#d4af37]/40 bg-[#141210] p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <span className="text-xs uppercase tracking-widest text-[#d4af37] font-bold">
+                Mərkəzi İdarəetmə Sistemi
+              </span>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#e5c158] mt-1">
+                QR Menyu Platforması — Baş Admin
+              </h1>
+              <p className="text-xs text-zinc-400 mt-1">
+                Yeni restoranları buradan yaradın. Hər restoran öz panelindən öz brendini idarə edir.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {restaurants.map((rest) => (
-                  <div
-                    key={rest.id}
-                    className="flex items-center bg-zinc-800 rounded-xl overflow-hidden text-sm border border-zinc-700"
-                  >
-                    <Link
-                      href={`/${rest.slug}`}
-                      className="px-3 py-1.5 hover:bg-zinc-700 transition font-medium"
-                    >
-                      🍴 {rest.name}
-                    </Link>
-                    <Link
-                      href={`/admin?slug=${rest.slug}`}
-                      className="bg-zinc-950 px-2.5 py-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition border-l border-zinc-700"
-                      title="İdarəetmə Paneli"
-                    >
-                      ⚙️ İdarə et
-                    </Link>
-                  </div>
-                ))}
-              </div>
             </div>
-          )}
-        </div>
-
-        {/* Sağ Taraf: Yeni Restoran Kayıt Formu */}
-        <div className="bg-zinc-800/70 border border-zinc-700 p-6 md:p-8 rounded-3xl shadow-xl">
-          <h2 className="text-2xl font-bold mb-6">✨ Yeni Restoran Qeydiyyatı</h2>
-          <form action={createRestaurant} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Restoranın Adı
-              </label>
-              <input
-                type="text"
-                name="name"
-                placeholder="Məs: Bakı Gecələri"
-                required
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+            <div className="bg-[#1c1813] border border-[#d4af37]/30 px-4 py-2.5 rounded-xl text-center">
+              <span className="text-xs text-zinc-400 block">Aktiv Restoranlar</span>
+              <span className="text-xl font-bold text-[#e5c158]">{restaurants.length}</span>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Menyu Linki (URL Slug)
-              </label>
-              <div className="flex items-center bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-emerald-500">
-                <span className="text-zinc-500 text-sm select-none">
-                  site.com/
-                </span>
-                <input
-                  type="text"
-                  name="slug"
-                  placeholder="baki-geceleri"
-                  required
-                  className="w-full bg-transparent text-white focus:outline-none ml-1"
-                />
-              </div>
+          <form action={createRestaurant} className="bg-[#141210] border border-[#d4af37]/30 p-6 rounded-2xl space-y-4">
+            <h2 className="text-lg font-bold text-[#e5c158]">➕ Yeni Restoran Əlavə Et</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <input name="name" placeholder="Restoranın Adı (məs: Padişah)" required className={inp} />
+              <input name="slug" placeholder="Link adı (məs: padisah)" required className={inp} />
+              <input name="phone" placeholder="WhatsApp (məs: 994501234567)" required className={inp} />
+              <input name="pinCode" placeholder="Restoran PİN Şifrəsi (məs: 1234)" required className={inp} />
+              <input name="subtitle" placeholder="Mətbəx (məs: Milli Mətbəx)" className={inp} />
+              <input name="address" placeholder="Ünvan (məs: Bakı ş.)" className={inp} />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">
-                WhatsApp Sifariş Nömrəsi
-              </label>
-              <input
-                type="text"
-                name="phone"
-                placeholder="Məs: 994501234567"
-                required
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-emerald-500 text-zinc-950 font-bold py-3.5 rounded-xl hover:bg-emerald-400 transition shadow-lg mt-2"
-            >
-              Restoranı Yarat və Panelə Keç →
+            <button type="submit" className="w-full bg-[#d4af37] hover:bg-[#e5c158] text-black font-bold py-3 rounded-xl transition">
+              🚀 Yeni Restoranı və Özəl Panelini Yarat
             </button>
           </form>
+
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-[#e5c158]">🏪 Sistemdəki Restoranlar</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {restaurants.map((rest) => {
+                const r = rest as any;
+                return (
+                  <div key={rest.id} className="bg-[#141210] border border-[#d4af37]/30 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        {r.logoUrl ? (
+                          <img src={r.logoUrl} alt={rest.name} className="w-14 h-14 rounded-full object-cover border border-[#d4af37]" />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full border border-[#d4af37] bg-[#1f1a12] flex items-center justify-center font-serif font-bold text-xl text-[#e5c158]">
+                            {rest.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{rest.name}</h3>
+                          <p className="text-xs text-[#d4af37]">
+                            Link: /{rest.slug} · 🔑 PİN: {r.pinCode ? r.pinCode : "1234"}
+                          </p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            {rest.categories.length} kateqoriya · 📞 {rest.phone}
+                          </p>
+                        </div>
+                      </div>
+
+                      <form action={deleteRestaurant}>
+                        <input type="hidden" name="id" value={rest.id} />
+                        <button type="submit" className="text-xs text-red-400 hover:text-red-300 font-semibold px-2 py-1">
+                          Sil
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800">
+                      <Link
+                        href={`/admin?slug=${rest.slug}`}
+                        className="bg-[#d4af37] hover:bg-[#e5c158] text-black text-xs font-bold py-2.5 px-3 rounded-xl text-center"
+                      >
+                        ⚙️ Brend & Menyu Paneli
+                      </Link>
+                      <Link
+                        href={`/${rest.slug}`}
+                        target="_blank"
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl text-center"
+                      >
+                        📱 Müştəri Menyusu ↗
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </AdminPinGuard>
   );
 }
