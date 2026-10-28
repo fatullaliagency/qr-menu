@@ -71,9 +71,10 @@ export default function AdminPinGuard({
       const result = await loginAdmin(formData);
 
       if (result.success) {
-        setUnlocked(true);
-        setPin("");
-        setError("");
+  setUnlocked(true);
+  setPin("");
+  setError("");
+  window.location.reload();
       } else {
         setPin("");
         setError(result.message);
