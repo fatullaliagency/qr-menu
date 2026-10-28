@@ -1,110 +1,109 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { loginAdmin, logoutAdmin } from "./auth-actions";
 
-const MASTER_PIN = "05230715";
+type AdminPinGuardProps = {
+  children: ReactNode;
+  restaurantSlug?: string;
+  initialAuthenticated?: boolean;
+
+  // Köhnə səhifələrlə müvəqqəti uyğunluq üçündür.
+  // Bu dəyərlər autentifikasiyada istifadə edilmir.
+  restaurantPin?: string;
+  storageKey?: string;
+};
 
 export default function AdminPinGuard({
   children,
-  restaurantPin,
-  storageKey = "qr_admin_auth",
-}: {
-  children: React.ReactNode;
-  restaurantPin?: string;
-  storageKey?: string;
-}) {
-  const [unlocked, setUnlocked] = useState(false);
-  const [checked, setChecked] = useState(false);
+  restaurantSlug,
+  initialAuthenticated = false,
+}: AdminPinGuardProps) {
+  const [unlocked, setUnlocked] = useState(
+    initialAuthenticated
+  );
+
   const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(storageKey);
-    if (saved === "ok") {
+    if (initialAuthenticated) {
       setUnlocked(true);
     }
-    setChecked(true);
-  }, [storageKey]);
+  }, [initialAuthenticated]);
 
-  useEffect(() => {
-    if (!unlocked) return;
+  const handleLogin = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
-    const handleFileChange = (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      if (!target) return;
-      if (!target.dataset.pick) return;
-      const file = target.files?.[0];
-      if (!file) return;
+    if (loading) return;
 
-      const box = target.closest('[data-picker="1"]');
-      if (!box) return;
-      const hidden = box.querySelector('input[type="hidden"]') as HTMLInputElement;
-      const preview = box.querySelector('[data-prev="1"]') as HTMLImageElement;
-      const status = box.querySelector('[data-status="1"]') as HTMLElement;
+    setError("");
 
-      if (status) status.textContent = "⏳ Hazırlanır...";
+    const enteredPin = pin.trim();
 
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const max = 800;
-          let w = img.width;
-          let h = img.height;
-          if (w > h) {
-            if (w > max) {
-              h = Math.round((h * max) / w);
-              w = max;
-            }
-          } else {
-            if (h > max) {
-              w = Math.round((w * max) / h);
-              h = max;
-            }
-          }
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
-          if (hidden) hidden.value = dataUrl;
-          if (preview) {
-            preview.src = dataUrl;
-            preview.style.display = "block";
-          }
-          if (status) status.textContent = "✓ Şəkil seçildi";
-          target.value = "";
-        };
-        img.src = ev.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    };
+    if (!enteredPin) {
+      setError("PİN kodunu daxil edin.");
+      return;
+    }
 
-    document.addEventListener("change", handleFileChange);
-    return () => document.removeEventListener("change", handleFileChange);
-  }, [unlocked]);
+    setLoading(true);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const entered = pin.trim();
-    const expected = restaurantPin ? restaurantPin.trim() : MASTER_PIN;
+    try {
+      const params = new URLSearchParams(
+        window.location.search
+      );
 
-    if (entered === MASTER_PIN) {
-      sessionStorage.setItem(storageKey, "ok");
-      setUnlocked(true);
-      setError(false);
-    } else if (entered === expected) {
-      sessionStorage.setItem(storageKey, "ok");
-      setUnlocked(true);
-      setError(false);
-    } else {
-      setError(true);
+      const slug =
+        restaurantSlug ||
+        params.get("slug") ||
+        "fatullali";
+
+      const formData = new FormData();
+
+      formData.set("slug", slug);
+      formData.set("pin", enteredPin);
+
+      const result = await loginAdmin(formData);
+
+      if (result.success) {
+        setUnlocked(true);
+        setPin("");
+        setError("");
+      } else {
+        setPin("");
+        setError(result.message);
+      }
+    } catch {
       setPin("");
+      setError(
+        "Giriş zamanı xəta baş verdi. Yenidən cəhd edin."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!checked) return null;
+  const handleLogout = async () => {
+    if (loading) return;
+
+    setLoading(true);
+
+    try {
+      await logoutAdmin();
+      setUnlocked(false);
+      setPin("");
+      setError("");
+    } catch {
+      setError("Çıxış zamanı xəta baş verdi.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!unlocked) {
     return (
@@ -116,29 +115,68 @@ export default function AdminPinGuard({
           <div className="w-16 h-16 mx-auto rounded-full border-2 border-[#d4af37] bg-[#1c1812] flex items-center justify-center text-2xl">
             🔒
           </div>
+
           <div>
-            <h1 className="text-xl font-bold text-[#e5c158]">İdarəetmə Paneli</h1>
-            <p className="text-xs text-zinc-400 mt-1">PİN şifrənizi daxil edin</p>
+            <h1 className="text-xl font-bold text-[#e5c158]">
+              İdarəetmə Paneli
+            </h1>
+
+            <p className="text-xs text-zinc-400 mt-1">
+              PİN şifrənizi daxil edin
+            </p>
           </div>
+
           <input
             type="password"
+            inputMode="numeric"
+            autoComplete="current-password"
             value={pin}
-            onChange={(e) => setPin(e.target.value)}
+            onChange={(event) => {
+              setPin(event.target.value);
+              if (error) setError("");
+            }}
             placeholder="••••"
             required
-            className="w-full text-center text-xl tracking-widest bg-zinc-900 border border-[#d4af37]/40 text-white rounded-xl py-3 px-4"
+            disabled={loading}
+            aria-label="Admin PİN kodu"
+            className="w-full text-center text-xl tracking-widest bg-zinc-900 border border-[#d4af37]/40 text-white rounded-xl py-3 px-4 outline-none focus:border-[#d4af37] disabled:opacity-60"
           />
-          {error && <p className="text-xs text-red-400 font-semibold">❌ Yanlış şifrə!</p>}
+
+          {error && (
+            <p
+              role="alert"
+              className="text-xs text-red-400 font-semibold"
+            >
+              ❌ {error}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-[#d4af37] text-black font-bold py-3 rounded-xl"
+            disabled={loading}
+            className="w-full bg-[#d4af37] text-black font-bold py-3 rounded-xl hover:bg-[#e5c158] transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Daxil Ol →
+            {loading ? "Yoxlanılır..." : "Daxil Ol →"}
           </button>
         </form>
       </div>
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <div className="fixed top-3 right-3 z-50">
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loading}
+          className="bg-zinc-900 text-white border border-zinc-700 text-xs font-semibold px-3 py-2 rounded-lg shadow-lg hover:bg-zinc-800 disabled:opacity-60"
+        >
+          {loading ? "Gözləyin..." : "Çıxış"}
+        </button>
+      </div>
+
+      {children}
+    </>
+  );
 }
