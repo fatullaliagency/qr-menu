@@ -1,4 +1,4 @@
-
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
@@ -62,7 +62,7 @@ async function saveRestaurantPin(formData: FormData) {
   redirect("/admin/pin-settings?status=saved");
 }
 
-export default async function PinSettingsPage({
+async function PinSettingsContent({
   searchParams,
 }: {
   searchParams: Promise<{ status?: string }>;
@@ -168,3 +168,25 @@ export default async function PinSettingsPage({
     </main>
   );
 }
+export default function PinSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-gray-100 p-5">
+          <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow">
+            <p className="text-gray-600">
+              PIN ayarları yüklənir...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <PinSettingsContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
