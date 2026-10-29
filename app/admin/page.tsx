@@ -4,7 +4,7 @@ import Link from "next/link";
 import QrCodeBox from "./QrCodeBox";
 import AdminPinGuard from "./AdminPinGuard";
 
-export const dynamic = "force-dynamic";
+
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ slug?: string }> }) {
   const params = await searchParams;
