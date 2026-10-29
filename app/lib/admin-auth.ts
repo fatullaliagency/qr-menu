@@ -1,101 +1,153 @@
 
-"use server";
-
-import { db } from "@/app/lib/db";
+import "server-only";
 
 import {
-  createAdminSession,
-  deleteAdminSession,
-} from "@/app/lib/admin-auth";
+  createHmac,
+  timingSafeEqual,
+} from "node:crypto";
+import { cookies } from "next/headers";
 
-import {
-  matchesMasterPin,
-  verifyRestaurantPin,
-} from "@/app/lib/pin-security";
+const COOKIE_NAME = "qr_admin_session";
+const SESSION_DURATION = 60 * 60 * 8;
 
-type LoginResult = {
-  success: boolean;
-  message: string;
+type AdminSession = {
+  restaurantId: string;
+  expiresAt: number;
 };
 
-const INVALID_LOGIN =
-  "Restoran və ya PİN kod yanlışdır.";
+function getSessionSecret(): string {
+  const secret = process.env.ADMIN_SESSION_SECRET;
 
-export async function loginAdmin(
-  formData: FormData
-): Promise<LoginResult> {
-  const slugInput = formData.get("slug");
-  const pinInput = formData.get("pin");
-
-  if (
-    typeof slugInput !== "string" ||
-    typeof pinInput !== "string"
-  ) {
-    return {
-      success: false,
-      message: INVALID_LOGIN,
-    };
-  }
-
-  const slug = slugInput.trim();
-  const pin = pinInput.trim();
-
-  if (
-    !slug ||
-    slug.length > 120 ||
-    !pin ||
-    pin.length > 128
-  ) {
-    return {
-      success: false,
-      message: INVALID_LOGIN,
-    };
-  }
-
-  const restaurant = await db.restaurant.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      pinCode: true,
-    },
-  });
-
-  if (!restaurant) {
-    return {
-      success: false,
-      message: INVALID_LOGIN,
-    };
-  }
-
-  const masterPin =
-    process.env.ADMIN_MASTER_PIN?.trim();
-
-  const masterPinValid = matchesMasterPin(
-    pin,
-    masterPin
-  );
-
-  const restaurantPinValid =
-    await verifyRestaurantPin(
-      pin,
-      restaurant.pinCode
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      "ADMIN_SESSION_SECRET must contain at least 32 characters."
     );
-
-  if (!masterPinValid && !restaurantPinValid) {
-    return {
-      success: false,
-      message: INVALID_LOGIN,
-    };
   }
 
-  await createAdminSession(restaurant.id);
-
-  return {
-    success: true,
-    message: "Giriş uğurludur.",
-  };
+  return secret;
 }
 
-export async function logoutAdmin(): Promise<void> {
-  await deleteAdminSession();
+function sign(payload: string): string {
+  return createHmac("sha256", getSessionSecret())
+    .update(payload)
+    .digest("base64url");
+}
+
+function verifySignature(
+  payload: string,
+  signature: string
+): boolean {
+  const expected = Buffer.from(sign(payload), "base64url");
+  const actual = Buffer.from(signature, "base64url");
+
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expected, actual);
+}
+
+export async function createAdminSession(
+  restaurantId: string
+): Promise<void> {
+  if (!restaurantId) {
+    throw new Error("Restaurant ID is required.");
+  }
+
+  const expiresAt =
+    Date.now() + SESSION_DURATION * 1000;
+
+  const session: AdminSession = {
+    restaurantId,
+    expiresAt,
+  };
+
+  const payload = Buffer.from(
+    JSON.stringify(session)
+  ).toString("base64url");
+
+  const signature = sign(payload);
+
+  const cookieStore = await cookies();
+
+  cookieStore.set(
+    COOKIE_NAME,
+    `${payload}.${signature}`,
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION,
+    }
+  );
+}
+
+export async function getAdminSession():
+  Promise<AdminSession | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  const parts = token.split(".");
+
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [payload, signature] = parts;
+
+  if (!payload || !signature) {
+    return null;
+  }
+
+  if (!verifySignature(payload, signature)) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8")
+    ) as Partial<AdminSession>;
+
+    if (
+      typeof session.restaurantId !== "string" ||
+      !session.restaurantId ||
+      typeof session.expiresAt !== "number" ||
+      !Number.isFinite(session.expiresAt) ||
+      session.expiresAt <= Date.now()
+    ) {
+      return null;
+    }
+
+    return {
+      restaurantId: session.restaurantId,
+      expiresAt: session.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function requireAdminSession(
+  restaurantId: string
+): Promise<void> {
+  const session = await getAdminSession();
+
+  if (
+    !session ||
+    session.restaurantId !== restaurantId
+  ) {
+    throw new Error("İcazəsiz əməliyyat.");
+  }
+}
+
+export async function deleteAdminSession():
+  Promise<void> {
+  const cookieStore = await cookies();
+
+  cookieStore.delete(COOKIE_NAME);
 }
