@@ -1,42 +1,25 @@
 
 "use server";
 
-import {
-  createHash,
-  timingSafeEqual,
-} from "node:crypto";
-
 import { db } from "@/app/lib/db";
+
 import {
   createAdminSession,
   deleteAdminSession,
 } from "@/app/lib/admin-auth";
+
+import {
+  matchesMasterPin,
+  verifyRestaurantPin,
+} from "@/app/lib/pin-security";
 
 type LoginResult = {
   success: boolean;
   message: string;
 };
 
-const INVALID_LOGIN = "Restoran və ya PİN kod yanlışdır.";
-
-function matchesPin(
-  entered: string,
-  expected: string | null | undefined
-): boolean {
-  if (!expected) {
-    return false;
-  }
-
-  const enteredHash = createHash("sha256")
-    .update(entered, "utf8")
-    .digest();
-
-  const expectedHash = createHash("sha256")
-    .update(expected, "utf8")
-    .digest();
-
-  return timingSafeEqual(enteredHash, expectedHash);
-}
+const INVALID_LOGIN =
+  "Restoran və ya PİN kod yanlışdır.";
 
 export async function loginAdmin(
   formData: FormData
@@ -84,19 +67,21 @@ export async function loginAdmin(
     };
   }
 
-  const masterPin = process.env.ADMIN_MASTER_PIN?.trim();
+  const masterPin =
+    process.env.ADMIN_MASTER_PIN?.trim();
 
-  const restaurantPinValid = matchesPin(
-    pin,
-    restaurant.pinCode
-  );
-
-  const masterPinValid = matchesPin(
+  const masterPinValid = matchesMasterPin(
     pin,
     masterPin
   );
 
-  if (!restaurantPinValid && !masterPinValid) {
+  const restaurantPinValid =
+    await verifyRestaurantPin(
+      pin,
+      restaurant.pinCode
+    );
+
+  if (!masterPinValid && !restaurantPinValid) {
     return {
       success: false,
       message: INVALID_LOGIN,
