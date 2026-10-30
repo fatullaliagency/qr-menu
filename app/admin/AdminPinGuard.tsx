@@ -127,7 +127,35 @@ export default function AdminPinGuard({
             </p>
           </div>
 
-          <input
+          
+<div className="space-y-2 text-left">
+  <label
+    htmlFor="restaurant-select"
+    className="block text-xs font-semibold text-[#e5c158]"
+  >
+    Restoran seçin
+  </label>
+
+  <select
+    id="restaurant-select"
+    value={restaurantSlug || "fatullali"}
+    disabled={loading}
+    onChange={(event) => {
+      const selectedSlug = event.target.value;
+
+      window.location.assign(
+        `/admin?slug=${encodeURIComponent(selectedSlug)}`
+      );
+    }}
+    className="w-full rounded-xl border border-[#d4af37]/40 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-[#d4af37] disabled:opacity-60"
+  >
+    <option value="fatullali">Fatullali</option>
+    <option value="dirzaman">Dirzaman</option>
+    <option value="tircan">Tircan</option>
+    <option value="yeniretoran">Yeni restoran</option>
+  </select>
+</div>
+<input
             type="password"
             inputMode="numeric"
             autoComplete="current-password"
