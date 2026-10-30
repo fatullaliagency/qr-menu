@@ -49,3 +49,12 @@ model MenuItem {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 }
+model AdminLoginAttempt {
+  key            String    @id @db.VarChar(64)
+  failedAttempts Int       @default(0)
+  blockedUntil   DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([updatedAt])
+}
+
