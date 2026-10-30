@@ -12,7 +12,8 @@ model Restaurant {
   name         String
   slug         String     @unique
   phone        String
-  pinCode      String?    @default("1234")
+createdAt DateTime @default(now()) @db.Timestamp(3)
+ pinCode String?
   subtitle     String?
   slogan       String?
   description  String?

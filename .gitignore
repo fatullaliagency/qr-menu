@@ -1,0 +1,13 @@
+
+/node_modules/
+/migration-backups/
+/prisma/schema.backup.prisma
+*.bak
+*.dump
+.env
+.env.local
+.env.*.local
+
+*.tsbuildinfo
+
+/.next/
