@@ -27,9 +27,12 @@ createdAt DateTime @default(now()) @db.Timestamp(3)
   instagramUrl String?
   facebookUrl  String?
   mapUrl       String?
+  
   categories   Category[]
   menuItems    MenuItem[]
+  orders       Order[]
 }
+
 
 model Category {
   id           String     @id @default(cuid())
@@ -58,4 +61,73 @@ model AdminLoginAttempt {
 
   @@index([updatedAt])
 }
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  ONLINE_CARD
+  MANUAL_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_VERIFICATION
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  restaurantId String
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  customerName String
+  customerPhone String
+
+  addressText String?
+  latitude Float?
+  longitude Float?
+  customerNote String?
+
+  subtotal Decimal @db.Decimal(10, 2)
+  deliveryFee Decimal @default(0) @db.Decimal(10, 2)
+  total Decimal @db.Decimal(10, 2)
+
+  status OrderStatus @default(NEW)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([restaurantId, createdAt])
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  menuItemId String?
+  name String
+
+  quantity Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  lineTotal Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
 
