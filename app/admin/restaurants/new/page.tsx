@@ -1,3 +1,5 @@
+
+import { Suspense } from "react";
 import { createHash, timingSafeEqual } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -79,7 +81,17 @@ const errors: Record<string, string> = {
   duplicate: "Bu URL adı artıq istifadə olunur. Başqa ad seçin.",
 };
 
-export default async function NewRestaurantPage({ searchParams }: PageProps) {
+
+export default function NewRestaurantPage(props: PageProps) {
+  return (
+    <Suspense fallback={<div>Yüklənir...</div>}>
+      <NewRestaurantContent {...props} />
+    </Suspense>
+  );
+}
+
+async function NewRestaurantContent({ searchParams }: PageProps) {
+
   const params = await searchParams;
   const created = typeof params.created === "string" &&
     /^[a-z0-9-]{3,40}$/.test(params.created) ? params.created : null;
