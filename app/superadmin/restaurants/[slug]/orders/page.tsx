@@ -35,7 +35,25 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 
 type Props = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{
+    status?: string | string[];
+    payment?: string | string[];
+  }>;
 };
+
+function getStatusFilter(value: string | string[] | undefined): OrderStatus | undefined {
+  if (typeof value !== "string") return undefined;
+  return Object.prototype.hasOwnProperty.call(ORDER_LABELS, value)
+    ? (value as OrderStatus)
+    : undefined;
+}
+
+function getPaymentMethodFilter(value: string | string[] | undefined): PaymentMethod | undefined {
+  if (typeof value !== "string") return undefined;
+  return Object.prototype.hasOwnProperty.call(METHOD_LABELS, value)
+    ? (value as PaymentMethod)
+    : undefined;
+}
 
 export default function SuperAdminRestaurantOrders(props: Props) {
   return (
@@ -45,7 +63,7 @@ export default function SuperAdminRestaurantOrders(props: Props) {
   );
 }
 
-async function RestaurantOrdersContent({ params }: Props) {
+async function RestaurantOrdersContent({ params, searchParams }: Props) {
   // Giriş yoxlanmadan heç bir restoran və sifariş sorğusu aparılmır.
   if (!(await hasSuperAdminSession())) {
     redirect("/superadmin");
@@ -60,11 +78,21 @@ async function RestaurantOrdersContent({ params }: Props) {
   });
   if (!restaurant) notFound();
 
-  // Yalnız seçilmiş restorana aid son 50 sifariş.
+  const filters = await searchParams;
+  const statusFilter = getStatusFilter(filters.status);
+  const paymentFilter = getPaymentMethodFilter(filters.payment);
+
+  const orderWhere = {
+    restaurantId: restaurant.id,
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(paymentFilter ? { paymentMethod: paymentFilter } : {}),
+  };
+
+  // Yalnız seçilmiş restorana aid və filtrə uyğun son 50 sifariş.
   // Müştərinin adı, telefonu, ünvanı, qeydi və izləmə tokeni alınmır.
   const [orders, statusGroups, paidTotals] = await Promise.all([
   db.order.findMany({
-    where: { restaurantId: restaurant.id },
+    where: orderWhere,
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {
@@ -111,8 +139,7 @@ async function RestaurantOrdersContent({ params }: Props) {
             {restaurant.name} — Sifarişlər
           </h1>
           <p className="mt-2 text-sm text-zinc-600">
-            Son 50 sifariş göstərilir. Bu bölmə yalnız oxumaq üçündür və müştəri
-            məlumatlarını göstərmir.
+            Bu bölmə yalnız oxumaq üçündür və müştəri məlumatlarını göstərmir.
           </p>
         </div>
 
@@ -145,9 +172,58 @@ async function RestaurantOrdersContent({ params }: Props) {
             bank köçürməsi və ya hesablaşma təsdiqi deyil.
           </p>
         </section>
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-lg font-bold">Sifarişləri filtrlə</h2>
+          <form method="get" className="flex flex-wrap items-end gap-3">
+            <label htmlFor="order-status" className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm">
+              Sifariş statusu
+              <select
+                id="order-status"
+                name="status"
+                defaultValue={statusFilter ?? "ALL"}
+                className="rounded-lg border border-zinc-300 bg-white p-2"
+              >
+                <option value="ALL">Bütün statuslar</option>
+                {(Object.keys(ORDER_LABELS) as OrderStatus[]).map((status) => (
+                  <option key={status} value={status}>{ORDER_LABELS[status]}</option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="payment-method" className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm">
+              Ödəniş üsulu
+              <select
+                id="payment-method"
+                name="payment"
+                defaultValue={paymentFilter ?? "ALL"}
+                className="rounded-lg border border-zinc-300 bg-white p-2"
+              >
+                <option value="ALL">Bütün üsullar</option>
+                {(Object.keys(METHOD_LABELS) as PaymentMethod[]).map((method) => (
+                  <option key={method} value={method}>{METHOD_LABELS[method]}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Filtrlə
+            </button>
+            <Link
+              href={`/superadmin/restaurants/${encodeURIComponent(restaurant.slug)}/orders`}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold"
+            >
+              Sıfırla
+            </Link>
+          </form>
+          <p className="mt-3 text-xs text-zinc-600">
+            Filtrə uyğun {orders.length} sifariş göstərilir (maksimum son 50).
+            Yuxarıdakı statistika isə restoranın bütün sifarişlərini əhatə edir.
+          </p>
+        </section>
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5 shadow-sm">
-            Bu restoranda hələ sifariş yoxdur.
+            Seçilmiş filtrlərə uyğun sifariş tapılmadı.
           </div>
         )}
 
