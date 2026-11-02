@@ -83,6 +83,39 @@ async function updateOrderStatus(formData: FormData) {
   revalidatePath("/admin/orders");
 }
 
+// Nağd pul həqiqətən təhvil alındıqdan sonra restoran admini təsdiqləyir.
+// Bu əməliyyat sifarişin çatdırılması ilə avtomatik işləmir.
+async function confirmCashPayment(formData: FormData) {
+  "use server";
+
+  const session = await getAdminSession();
+  if (!session) {
+    throw new Error("Giriş tələb olunur.");
+  }
+
+  const orderId = formData.get("orderId");
+  if (typeof orderId !== "string" || orderId.length < 1 || orderId.length > 150) {
+    throw new Error("Yanlış sifariş.");
+  }
+
+  const result = await db.order.updateMany({
+    where: {
+      id: orderId,
+      restaurantId: session.restaurantId,
+      status: "DELIVERED",
+      paymentMethod: "CASH",
+      paymentStatus: "PENDING",
+    },
+    data: { paymentStatus: "PAID" },
+  });
+
+  if (result.count !== 1) {
+    throw new Error("Ödəniş yenilənmədi. Sifarişi yeniləyib yoxlayın.");
+  }
+
+  revalidatePath("/admin/orders");
+}
+
 export default function OrdersPage() {
   return (
     <Suspense fallback={<main className="p-8">Yüklənir...</main>}>
@@ -204,8 +237,29 @@ async function OrdersContent() {
               </p>
               <p>
                 <strong>Ödəniş statusu:</strong>{" "}
-                {order.paymentStatus}
+                {order.paymentStatus === "PAID"
+                  ? "Ödənilib"
+                  : order.paymentStatus === "PENDING"
+                    ? "Ödəniş gözlənilir"
+                    : order.paymentStatus}
               </p>
+
+              {order.paymentMethod === "CASH" &&
+                order.status === "DELIVERED" &&
+                order.paymentStatus === "PENDING" && (
+                  <form action={confirmCashPayment} className="mt-4">
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                    >
+                      ✓ Nağd ödəniş alındı — təsdiqlə
+                    </button>
+                    <p className="mt-2 text-xs text-gray-600">
+                      Bu düyməni yalnız pulu həqiqətən aldıqdan sonra basın.
+                    </p>
+                  </form>
+                )}
 
               {NEXT_STATUSES[order.status].length > 0 ? (
                 <div className="mt-4 flex flex-wrap gap-2">
