@@ -81,7 +81,8 @@ async function SuperAdminContent({ searchParams }: Props) {
 
   // Sifarişləri yalnız say və ödəniş vəziyyəti üzrə toplayırıq:
   // müştəri adı, telefon və ünvanı ilkin icmalda göstərilmir.
-  const [restaurants, orderGroups, paymentGroups] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [restaurants, orderGroups, paymentGroups, recentGroups, paidAmounts] = await Promise.all([
     db.restaurant.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, slug: true },
@@ -93,6 +94,16 @@ async function SuperAdminContent({ searchParams }: Props) {
     db.order.groupBy({
       by: ["restaurantId", "paymentStatus"],
       _count: { _all: true },
+    }),
+    db.order.groupBy({
+      by: ["restaurantId"],
+      where: { createdAt: { gte: sevenDaysAgo } },
+      _count: { _all: true },
+    }),
+    db.order.groupBy({
+      by: ["restaurantId"],
+      where: { paymentStatus: "PAID" },
+      _sum: { total: true },
     }),
   ]);
 
@@ -111,10 +122,16 @@ async function SuperAdminContent({ searchParams }: Props) {
       paid:
         payments.find((group) => group.paymentStatus === "PAID")?._count._all ??
         0,
+      lastSevenDays:
+        recentGroups.find((group) => group.restaurantId === restaurant.id)?._count._all ?? 0,
+      paidTotal:
+        paidAmounts.find((group) => group.restaurantId === restaurant.id)?._sum.total?.toString() ?? "0.00",
     };
   });
 
   const totalOrders = overview.reduce((sum, restaurant) => sum + restaurant.total, 0);
+  const totalPaid = overview.reduce((sum, restaurant) => sum + restaurant.paid, 0);
+  const recentOrders = overview.reduce((sum, restaurant) => sum + restaurant.lastSevenDays, 0);
 
   return (
     <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
@@ -144,16 +161,30 @@ async function SuperAdminContent({ searchParams }: Props) {
             <p className="text-sm text-zinc-600">Ümumi sifariş sayı</p>
             <p className="text-3xl font-bold">{totalOrders}</p>
           </div>
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Son 7 gündə sifarişlər</p>
+            <p className="text-3xl font-bold">{recentOrders}</p>
+          </div>
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Ödənişi təsdiqlənmiş sifarişlər</p>
+            <p className="text-3xl font-bold">{totalPaid}</p>
+          </div>
         </div>
         <section className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-lg font-bold">Restoranların sifariş icmalı</h2>
-          <table className="w-full min-w-[500px] text-left text-sm">
+          <p className="mb-3 text-xs text-zinc-600">
+            Məbləğlər yalnız ödəniş statusu PAID olan sifarişlər üzrə hesablanır.
+            Bu göstəricilər bank hesabı ilə üzləşdirilmiş maliyyə hesabatı deyil.
+          </p>
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead>
               <tr className="border-b text-zinc-600">
                 <th className="p-3">Restoran</th>
                 <th className="p-3">Cəmi sifariş</th>
                 <th className="p-3">Yeni sifariş</th>
+                <th className="p-3">Son 7 gün</th>
                 <th className="p-3">Ödənişi təsdiqlənən</th>
+                <th className="p-3">Təsdiqli ödənişlərin cəmi</th>
               </tr>
             </thead>
             <tbody>
@@ -173,7 +204,9 @@ async function SuperAdminContent({ searchParams }: Props) {
                   </td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
+                  <td className="p-3">{restaurant.lastSevenDays}</td>
                   <td className="p-3">{restaurant.paid}</td>
+                  <td className="p-3 whitespace-nowrap">{restaurant.paidTotal} ₼</td>
                 </tr>
               ))}
             </tbody>

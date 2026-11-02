@@ -62,7 +62,8 @@ async function RestaurantOrdersContent({ params }: Props) {
 
   // Yalnız seçilmiş restorana aid son 50 sifariş.
   // Müştərinin adı, telefonu, ünvanı, qeydi və izləmə tokeni alınmır.
-  const orders = await db.order.findMany({
+  const [orders, statusGroups, paidTotals] = await Promise.all([
+  db.order.findMany({
     where: { restaurantId: restaurant.id },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -82,7 +83,22 @@ async function RestaurantOrdersContent({ params }: Props) {
         },
       },
     },
-  });
+  }),
+  db.order.groupBy({
+    by: ["status"],
+    where: { restaurantId: restaurant.id },
+    _count: { _all: true },
+  }),
+  db.order.aggregate({
+    where: { restaurantId: restaurant.id, paymentStatus: "PAID" },
+    _sum: { total: true },
+    _count: { _all: true },
+  }),
+  ]);
+  const counts = Object.fromEntries(
+    statusGroups.map((item) => [item.status, item._count._all])
+  ) as Partial<Record<OrderStatus, number>>;
+  const allOrders = statusGroups.reduce((sum, item) => sum + item._count._all, 0);
 
   return (
     <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
@@ -100,6 +116,35 @@ async function RestaurantOrdersContent({ params }: Props) {
           </p>
         </div>
 
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-lg font-bold">Sifariş statistikası</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg bg-zinc-100 p-3">
+              <p className="text-sm text-zinc-600">Cəmi sifariş</p>
+              <p className="text-2xl font-bold">{allOrders}</p>
+            </div>
+            {(["NEW", "CONFIRMED", "PREPARING", "ON_THE_WAY", "DELIVERED", "CANCELLED"] as const).map((status) => (
+              <div key={status} className="rounded-lg bg-zinc-100 p-3">
+                <p className="text-sm text-zinc-600">{ORDER_LABELS[status]}</p>
+                <p className="text-2xl font-bold">{counts[status] ?? 0}</p>
+              </div>
+            ))}
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-sm text-emerald-800">Ödənişi təsdiqlənən</p>
+              <p className="text-2xl font-bold">{paidTotals._count._all}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-sm text-emerald-800">Təsdiqli ödəniş məbləği</p>
+              <p className="text-2xl font-bold">
+                {paidTotals._sum.total?.toString() ?? "0.00"} ₼
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-zinc-600">
+            Məbləğ yalnız PAID statuslu sifarişlərin sistemdə qeydə alınmış cəmidir;
+            bank köçürməsi və ya hesablaşma təsdiqi deyil.
+          </p>
+        </section>
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5 shadow-sm">
             Bu restoranda hələ sifariş yoxdur.
