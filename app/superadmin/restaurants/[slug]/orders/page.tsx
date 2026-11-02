@@ -1,10 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { hasSuperAdminSession } from "@/app/lib/superadmin-auth";
 import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 
-export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Restoran sifarişləri | QR Menü Super Admin",
   robots: { index: false, follow: false },
@@ -37,7 +37,15 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export default async function SuperAdminRestaurantOrders({ params }: Props) {
+export default function SuperAdminRestaurantOrders(props: Props) {
+  return (
+    <Suspense fallback={<main className="p-8">Yüklənir...</main>}>
+      <RestaurantOrdersContent {...props} />
+    </Suspense>
+  );
+}
+
+async function RestaurantOrdersContent({ params }: Props) {
   // Giriş yoxlanmadan heç bir restoran və sifariş sorğusu aparılmır.
   if (!(await hasSuperAdminSession())) {
     redirect("/superadmin");
