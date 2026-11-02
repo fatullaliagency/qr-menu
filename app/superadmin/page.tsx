@@ -143,14 +143,22 @@ async function SuperAdminContent({ searchParams }: Props) {
               Bütün restoranların yalnız oxunan sifariş icmalı
             </p>
           </div>
-          <form action={logoutSuperAdmin}>
-            <button
-              type="submit"
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/superadmin/restaurants/new"
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
             >
-              Çıxış
-            </button>
-          </form>
+              + Yeni restoran
+            </Link>
+            <form action={logoutSuperAdmin}>
+              <button
+                type="submit"
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Çıxış
+              </button>
+            </form>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-white p-5 shadow-sm">
