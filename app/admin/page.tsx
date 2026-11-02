@@ -203,14 +203,20 @@ export default function AdminPage({ searchParams }: PageProps) {
 
 async function AdminContent({ searchParams }: PageProps) {
   const params = await searchParams;
-  const slug =
-    typeof params.slug === "string" && params.slug.trim()
-      ? params.slug.trim()
-      : "fatullali";
-
   const session = await getAdminSession();
+  const restaurants = await db.restaurant.findMany({
+    select: { id: true, slug: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const requestedSlug = typeof params.slug === "string" ? params.slug.trim() : "";
+  const sessionSlug = restaurants.find((item) => item.id === session?.restaurantId)?.slug;
+  const slug =
+    (requestedSlug && restaurants.some((item) => item.slug === requestedSlug)
+      ? requestedSlug
+      : null) ?? sessionSlug ?? restaurants[0]?.slug ?? "";
+
   if (!session) {
-    return <AdminPinGuard restaurantSlug={slug}>{null}</AdminPinGuard>;
+    return <AdminPinGuard restaurantSlug={slug} restaurants={restaurants}>{null}</AdminPinGuard>;
   }
 
   const restaurant = await db.restaurant.findUnique({
@@ -252,7 +258,7 @@ async function AdminContent({ searchParams }: PageProps) {
     return <div className="p-10 text-center font-bold text-red-600">Restoran tapılmadı.</div>;
   }
   if (session.restaurantId !== restaurant.id) {
-    return <AdminPinGuard restaurantSlug={slug}>{null}</AdminPinGuard>;
+    return <AdminPinGuard restaurantSlug={slug} restaurants={restaurants}>{null}</AdminPinGuard>;
   }
 
   const inputClass =
@@ -263,7 +269,7 @@ async function AdminContent({ searchParams }: PageProps) {
   );
 
   return (
-    <AdminPinGuard restaurantSlug={restaurant.slug} initialAuthenticated={true}>
+    <AdminPinGuard restaurantSlug={restaurant.slug} restaurants={restaurants} initialAuthenticated={true}>
       <main className="min-h-screen bg-gray-100 p-4 text-gray-800 md:p-8">
         <div className="mx-auto max-w-4xl space-y-6">
           <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 shadow-sm">

@@ -9,6 +9,7 @@ type AdminPinGuardProps = {
   children: ReactNode;
   restaurantSlug?: string;
   initialAuthenticated?: boolean;
+  restaurants?: { slug: string; name: string }[];
 
   // Köhnə səhifələrlə müvəqqəti uyğunluq üçündür.
   // Bu dəyərlər autentifikasiyada istifadə edilmir.
@@ -19,11 +20,16 @@ type AdminPinGuardProps = {
 export default function AdminPinGuard({
   children,
   restaurantSlug,
+  restaurants = [],
   initialAuthenticated = false,
 }: AdminPinGuardProps) {
   const [unlocked, setUnlocked] = useState(
     initialAuthenticated
   );
+
+  const selectedSlug = restaurants.some((restaurant) => restaurant.slug === restaurantSlug)
+    ? restaurantSlug
+    : (restaurants[0]?.slug ?? "");
 
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -46,8 +52,8 @@ export default function AdminPinGuard({
 
     const enteredPin = pin.trim();
 
-    if (!enteredPin) {
-      setError("PİN kodunu daxil edin.");
+    if (!enteredPin || !selectedSlug) {
+      setError("Restoranı seçin və PİN kodunu daxil edin.");
       return;
     }
 
@@ -59,9 +65,9 @@ export default function AdminPinGuard({
       );
 
       const slug =
-        restaurantSlug ||
+        selectedSlug ||
         params.get("slug") ||
-        "fatullali";
+        "";
 
       const formData = new FormData();
 
@@ -138,8 +144,8 @@ export default function AdminPinGuard({
 
   <select
     id="restaurant-select"
-    value={restaurantSlug || "fatullali"}
-    disabled={loading}
+    value={selectedSlug}
+    disabled={loading || restaurants.length === 0}
     onChange={(event) => {
       const selectedSlug = event.target.value;
 
@@ -149,10 +155,14 @@ export default function AdminPinGuard({
     }}
     className="w-full rounded-xl border border-[#d4af37]/40 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-[#d4af37] disabled:opacity-60"
   >
-    <option value="fatullali">Fatullali</option>
-    <option value="dirzaman">Dirzaman</option>
-    <option value="tircan">Tircan</option>
-    <option value="yeniretoran">Yeni restoran</option>
+    {restaurants.length === 0 && (
+      <option value="">Hələ restoran yoxdur</option>
+    )}
+    {restaurants.map((restaurant) => (
+      <option key={restaurant.slug} value={restaurant.slug}>
+        {restaurant.name}
+      </option>
+    ))}
   </select>
 </div>
 <input
@@ -182,7 +192,7 @@ export default function AdminPinGuard({
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || restaurants.length === 0}
             className="w-full bg-[#d4af37] text-black font-bold py-3 rounded-xl hover:bg-[#e5c158] transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "Yoxlanılır..." : "Daxil Ol →"}
