@@ -215,6 +215,12 @@ async function SuperAdminContent({ searchParams }: Props) {
                     >
                       VÖEN və ödəniş ayarları
                     </Link>
+                    <Link
+                      href={`/superadmin/restaurants/${encodeURIComponent(restaurant.slug)}/edit`}
+                      className="mt-2 ml-4 inline-block text-sm font-medium text-blue-700 underline"
+                    >
+                      Restoranı düzəlt
+                    </Link>
                   </td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
