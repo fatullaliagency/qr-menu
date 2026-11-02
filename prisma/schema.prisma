@@ -30,7 +30,7 @@ createdAt DateTime @default(now()) @db.Timestamp(3)
   
   categories   Category[]
   menuItems    MenuItem[]
-  model Order []
+  orders       Order[]
 }
 
 
