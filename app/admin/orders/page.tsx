@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { OrderStatus } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
+import OrdersAutoRefresh from "./OrdersAutoRefresh";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: "Yeni sifariş",
@@ -169,10 +170,7 @@ async function OrdersContent() {
           </Link>
         </div>
 
-        <p className="text-sm text-gray-600">
-          Son 50 sifariş göstərilir. Yeni sifarişləri görmək üçün
-          səhifəni yeniləyin.
-        </p>
+        <OrdersAutoRefresh />
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
