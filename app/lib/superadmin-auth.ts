@@ -59,5 +59,12 @@ export async function establishSuperAdminSession(): Promise<void> {
 }
 
 export async function clearSuperAdminSession(): Promise<void> {
-  (await cookies()).delete(COOKIE);
+  // Cookie /superadmin yolunda yaradıldığı üçün çıxışda eyni yol silinməlidir.
+  (await cookies()).set(COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/superadmin",
+    maxAge: 0,
+  });
 }
