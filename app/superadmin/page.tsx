@@ -1,0 +1,181 @@
+import { Suspense } from "react";
+import { db } from "@/app/lib/db";
+import {
+  hasSuperAdminSession,
+  isSuperAdminEnabled,
+} from "@/app/lib/superadmin-auth";
+import { loginSuperAdmin, logoutSuperAdmin } from "./actions";
+
+export const metadata = {
+  title: "Super Admin | QR Menü",
+  robots: { index: false, follow: false },
+};
+
+type Props = {
+  searchParams: Promise<{ error?: string | string[] }>;
+};
+
+export default function SuperAdminPage(props: Props) {
+  return (
+    <Suspense fallback={<main className="p-8">Yüklənir...</main>}>
+      <SuperAdminContent {...props} />
+    </Suspense>
+  );
+}
+
+async function SuperAdminContent({ searchParams }: Props) {
+  if (!isSuperAdminEnabled()) {
+    return (
+      <main className="min-h-screen bg-zinc-100 p-8 text-zinc-900">
+        <div className="mx-auto max-w-lg rounded-xl bg-white p-6">
+          <h1 className="text-xl font-bold">Super Admin deaktivdir</h1>
+          <p className="mt-3 text-sm">
+            Bu panel yalnız ayrıca icazə verilmiş test mühitində aktivləşdirilir.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!(await hasSuperAdminSession())) {
+    const query = await searchParams;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-950 p-5 text-white">
+        <div className="w-full max-w-md rounded-2xl border border-amber-600/40 bg-zinc-900 p-6">
+          <h1 className="mb-2 text-2xl font-bold text-amber-400">
+            QR Menü — Super Admin
+          </h1>
+          <p className="mb-5 text-sm text-zinc-300">
+            Bütün restoranlara giriş üçün ayrıca idarəetmə açarı tələb olunur.
+          </p>
+          <form action={loginSuperAdmin} className="space-y-4">
+            <label className="block text-sm">
+              Super Admin giriş açarı
+              <input
+                type="password"
+                name="accessKey"
+                required
+                minLength={32}
+                maxLength={256}
+                autoComplete="off"
+                className="mt-2 w-full rounded-lg border border-zinc-600 bg-zinc-950 p-3 text-white"
+              />
+            </label>
+            {query.error === "1" && (
+              <p role="alert" className="text-sm text-red-300">
+                Giriş açarı yanlışdır.
+              </p>
+            )}
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-amber-400 p-3 font-bold text-zinc-950"
+            >
+              Super Admin kimi daxil ol
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  // Sifarişləri yalnız say və ödəniş vəziyyəti üzrə toplayırıq:
+  // müştəri adı, telefon və ünvanı ilkin icmalda göstərilmir.
+  const [restaurants, orderGroups, paymentGroups] = await Promise.all([
+    db.restaurant.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, slug: true },
+    }),
+    db.order.groupBy({
+      by: ["restaurantId", "status"],
+      _count: { _all: true },
+    }),
+    db.order.groupBy({
+      by: ["restaurantId", "paymentStatus"],
+      _count: { _all: true },
+    }),
+  ]);
+
+  const overview = restaurants.map((restaurant) => {
+    const statuses = orderGroups.filter(
+      (group) => group.restaurantId === restaurant.id
+    );
+    const payments = paymentGroups.filter(
+      (group) => group.restaurantId === restaurant.id
+    );
+    return {
+      ...restaurant,
+      total: statuses.reduce((sum, group) => sum + group._count._all, 0),
+      newOrders:
+        statuses.find((group) => group.status === "NEW")?._count._all ?? 0,
+      paid:
+        payments.find((group) => group.paymentStatus === "PAID")?._count._all ??
+        0,
+    };
+  });
+
+  const totalOrders = overview.reduce((sum, restaurant) => sum + restaurant.total, 0);
+
+  return (
+    <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">QR Menü — Super Admin</h1>
+            <p className="text-sm text-zinc-600">
+              Bütün restoranların yalnız oxunan sifariş icmalı
+            </p>
+          </div>
+          <form action={logoutSuperAdmin}>
+            <button
+              type="submit"
+              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Çıxış
+            </button>
+          </form>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Restoran sayı</p>
+            <p className="text-3xl font-bold">{restaurants.length}</p>
+          </div>
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Ümumi sifariş sayı</p>
+            <p className="text-3xl font-bold">{totalOrders}</p>
+          </div>
+        </div>
+        <section className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm">
+          <h2 className="mb-4 text-lg font-bold">Restoranların sifariş icmalı</h2>
+          <table className="w-full min-w-[500px] text-left text-sm">
+            <thead>
+              <tr className="border-b text-zinc-600">
+                <th className="p-3">Restoran</th>
+                <th className="p-3">Cəmi sifariş</th>
+                <th className="p-3">Yeni sifariş</th>
+                <th className="p-3">Ödənişi təsdiqlənən</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.map((restaurant) => (
+                <tr key={restaurant.id} className="border-b last:border-0">
+                  <td className="p-3 font-semibold">
+                    {restaurant.name}
+                    <span className="block text-xs font-normal text-zinc-500">
+                      {restaurant.slug}
+                    </span>
+                  </td>
+                  <td className="p-3">{restaurant.total}</td>
+                  <td className="p-3">{restaurant.newOrders}</td>
+                  <td className="p-3">{restaurant.paid}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {overview.length === 0 && (
+            <p className="p-3 text-zinc-600">Restoran qeydi yoxdur.</p>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
