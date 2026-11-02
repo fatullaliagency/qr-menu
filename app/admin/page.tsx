@@ -279,13 +279,21 @@ async function AdminContent({ searchParams }: PageProps) {
               </h1>
               <p className="mt-1 text-xs text-gray-500">Restoran və menyu idarəetməsi</p>
             </div>
-            <Link
-              href={`/${restaurant.slug}`}
-              target="_blank"
-              className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white"
-            >
-              Menyuya Bax ↗
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/admin/orders"
+                className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
+              >
+                📦 Sifarişlər
+              </Link>
+              <Link
+                href={`/${restaurant.slug}`}
+                target="_blank"
+                className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                Menyuya Bax ↗
+              </Link>
+            </div>
           </header>
 
           <QrCodeBox slug={restaurant.slug} restaurantName={restaurant.name} />
