@@ -174,7 +174,11 @@ async function RestaurantOrdersContent({ params, searchParams }: Props) {
         </section>
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-bold">Sifarişləri filtrlə</h2>
-          <form method="get" className="flex flex-wrap items-end gap-3">
+          <form
+            key={`${statusFilter ?? "ALL"}:${paymentFilter ?? "ALL"}`}
+            method="get"
+            className="flex flex-wrap items-end gap-3"
+          >
             <label htmlFor="order-status" className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm">
               Sifariş statusu
               <select
