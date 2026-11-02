@@ -2,7 +2,7 @@
 -- This does not turn on card processing; no API keys or card data are stored.
 -- Apply once to the staging database before the configuration screens are deployed.
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RestaurantPaymentMode') THEN
     CREATE TYPE "RestaurantPaymentMode" AS ENUM ('CASH_ONLY', 'CASH_AND_CARD');
@@ -10,7 +10,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'MerchantApprovalStatus') THEN
     CREATE TYPE "MerchantApprovalStatus" AS ENUM ('NOT_SUBMITTED', 'PENDING', 'APPROVED', 'REJECTED');
   END IF;
-END $;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "RestaurantPaymentSettings" (
   "restaurantId" TEXT NOT NULL,
