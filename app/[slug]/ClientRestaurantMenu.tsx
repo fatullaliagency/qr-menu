@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { createCashOrder } from "./order-actions";
 
-export default function ClientRestaurantMenu({ restaurant }: { restaurant: any }) {
+export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = false }: { restaurant: any; webOrdersEnabled?: boolean }) {
   const [cart, setCart] = useState<{ item: any; quantity: number }[]>([]);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const [copied, setCopied] = useState<string>("");
   const [activeCat, setActiveCat] = useState<string>("all");
 
@@ -48,6 +52,37 @@ export default function ClientRestaurantMenu({ restaurant }: { restaurant: any }
   };
 
   const totalAmount = cart.reduce((sum, i) => sum + i.item.price * i.quantity, 0);
+
+
+  const submitOrder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting || cart.length === 0 || !webOrdersEnabled) return;
+    setSubmitting(true);
+    setCheckoutError("");
+    const formData = new FormData(event.currentTarget);
+    try {
+      const result = await createCashOrder({
+        slug: restaurant.slug,
+        customerName: String(formData.get("customerName") ?? ""),
+        customerPhone: String(formData.get("customerPhone") ?? ""),
+        addressText: String(formData.get("addressText") ?? ""),
+        customerNote: String(formData.get("customerNote") ?? ""),
+        items: cart.map(({ item, quantity }) => ({
+          itemId: item.id,
+          quantity,
+        })),
+      });
+      if (result.success) {
+        window.location.assign(result.url);
+      } else {
+        setCheckoutError(result.message);
+      }
+    } catch {
+      setCheckoutError("Sifariş göndərilmədi. Yenidən cəhd edin.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const sendWhatsAppOrder = () => {
     if (cart.length === 0) return;
@@ -224,10 +259,105 @@ export default function ClientRestaurantMenu({ restaurant }: { restaurant: any }
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
               <span className="text-lg font-bold text-[#e5c158]">{totalAmount.toFixed(2)} ₼</span>
-              <button onClick={sendWhatsAppOrder} className="bg-[#d4af37] text-black px-5 py-2.5 rounded-xl font-bold text-sm">
-                WhatsApp ilə Sifariş Ver →
+              <div className="flex flex-wrap gap-2">
+                {webOrdersEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => { setCheckoutError(""); setCheckoutOpen(true); }}
+                    className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm"
+                  >
+                    Sifariş ver →
+                  </button>
+                )}
+                <button onClick={sendWhatsAppOrder} className="bg-[#d4af37] text-black px-5 py-2.5 rounded-xl font-bold text-sm">
+                  WhatsApp ilə Sifariş Ver →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutOpen && webOrdersEnabled && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Sifarişi təsdiqlə"
+            className="mx-auto my-8 max-w-lg rounded-2xl border border-[#d4af37]/40 bg-[#15120e] p-6 text-white"
+          >
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-bold text-[#e5c158]">Sifarişi təsdiqlə</h2>
+              <button
+                type="button"
+                onClick={() => setCheckoutOpen(false)}
+                disabled={submitting}
+                className="text-2xl text-zinc-300"
+                aria-label="Bağla"
+              >
+                ×
               </button>
             </div>
+            <p className="mb-4 text-sm text-zinc-300">
+              Cəmi: {totalAmount.toFixed(2)} ₼ · Ödəniş: Nağd
+            </p>
+            <form onSubmit={submitOrder} className="space-y-3">
+              <label className="block text-sm">
+                Ad və soyad
+                <input
+                  name="customerName"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  autoComplete="name"
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                />
+              </label>
+              <label className="block text-sm">
+                Telefon
+                <input
+                  name="customerPhone"
+                  required
+                  type="tel"
+                  maxLength={25}
+                  autoComplete="tel"
+                  placeholder="+994..."
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                />
+              </label>
+              <label className="block text-sm">
+                Çatdırılma ünvanı
+                <textarea
+                  name="addressText"
+                  required
+                  minLength={6}
+                  maxLength={300}
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                />
+              </label>
+              <label className="block text-sm">
+                Qeyd (istəyə bağlı)
+                <textarea
+                  name="customerNote"
+                  maxLength={500}
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                />
+              </label>
+              {checkoutError && (
+                <p role="alert" className="rounded-lg bg-red-950 p-3 text-sm text-red-200">
+                  {checkoutError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={submitting || cart.length === 0}
+                className="w-full rounded-xl bg-emerald-600 p-3 font-bold text-white disabled:opacity-50"
+              >
+                {submitting ? "Göndərilir..." : "Nağd sifarişi göndər — " + totalAmount.toFixed(2) + " ₼"}
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -29,5 +29,5 @@ export default async function RestaurantMenuPage({ params }: PageProps) {
   }
 
   // Veriyi Client bileşenine aktarıyoruz
-  return <ClientRestaurantMenu restaurant={restaurant} />;
+  return <ClientRestaurantMenu restaurant={restaurant} webOrdersEnabled={process.env.ENABLE_WEB_ORDERS === "true"} />;
 }
