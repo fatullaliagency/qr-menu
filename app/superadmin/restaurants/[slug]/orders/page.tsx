@@ -1,0 +1,136 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { db } from "@/app/lib/db";
+import { hasSuperAdminSession } from "@/app/lib/superadmin-auth";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
+
+export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Restoran sifarişləri | QR Menü Super Admin",
+  robots: { index: false, follow: false },
+};
+
+const ORDER_LABELS: Record<OrderStatus, string> = {
+  NEW: "Yeni sifariş",
+  CONFIRMED: "Təsdiqləndi",
+  PREPARING: "Hazırlanır",
+  ON_THE_WAY: "Çatdırılma yolundadır",
+  DELIVERED: "Çatdırıldı",
+  CANCELLED: "Ləğv edildi",
+};
+
+const PAYMENT_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "Ödəniş gözlənilir",
+  AWAITING_VERIFICATION: "Təsdiq gözlənilir",
+  PAID: "Ödənilib",
+  FAILED: "Uğursuz",
+  REFUNDED: "Geri qaytarılıb",
+};
+
+const METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Nağd",
+  ONLINE_CARD: "Onlayn kart",
+  MANUAL_TRANSFER: "Köçürmə",
+};
+
+type Props = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function SuperAdminRestaurantOrders({ params }: Props) {
+  // Giriş yoxlanmadan heç bir restoran və sifariş sorğusu aparılmır.
+  if (!(await hasSuperAdminSession())) {
+    redirect("/superadmin");
+  }
+
+  const { slug } = await params;
+  if (!slug || slug.length > 160) notFound();
+
+  const restaurant = await db.restaurant.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!restaurant) notFound();
+
+  // Yalnız seçilmiş restorana aid son 50 sifariş.
+  // Müştərinin adı, telefonu, ünvanı, qeydi və izləmə tokeni alınmır.
+  const orders = await db.order.findMany({
+    where: { restaurantId: restaurant.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      createdAt: true,
+      status: true,
+      paymentMethod: true,
+      paymentStatus: true,
+      total: true,
+      items: {
+        select: {
+          id: true,
+          name: true,
+          quantity: true,
+          lineTotal: true,
+        },
+      },
+    },
+  });
+
+  return (
+    <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <Link href="/superadmin" className="text-sm text-blue-700 underline">
+            ← Super Admin icmalına qayıt
+          </Link>
+          <h1 className="mt-3 text-2xl font-bold">
+            {restaurant.name} — Sifarişlər
+          </h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Son 50 sifariş göstərilir. Bu bölmə yalnız oxumaq üçündür və müştəri
+            məlumatlarını göstərmir.
+          </p>
+        </div>
+
+        {orders.length === 0 && (
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            Bu restoranda hələ sifariş yoxdur.
+          </div>
+        )}
+
+        {orders.map((order) => (
+          <article key={order.id} className="space-y-3 rounded-xl bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-bold">Sifariş #{order.id.slice(-8)}</h2>
+              <span className="text-sm text-zinc-600">
+                {order.createdAt.toLocaleString("az-AZ", {
+                  timeZone: "Asia/Baku",
+                })}
+              </span>
+            </div>
+            <div className="grid gap-2 rounded-lg bg-zinc-50 p-3 text-sm sm:grid-cols-2">
+              <p><strong>Sifariş:</strong> {ORDER_LABELS[order.status]}</p>
+              <p><strong>Ödəniş:</strong> {PAYMENT_LABELS[order.paymentStatus]}</p>
+              <p><strong>Ödəniş üsulu:</strong> {METHOD_LABELS[order.paymentMethod]}</p>
+              <p><strong>Ümumi məbləğ:</strong> {order.total.toString()} ₼</p>
+            </div>
+            <div className="border-t pt-3">
+              <h3 className="mb-2 text-sm font-semibold">Məhsullar</h3>
+              {order.items.length === 0 ? (
+                <p className="text-sm text-zinc-500">Məhsul qeydi yoxdur.</p>
+              ) : (
+                <ul className="space-y-1 text-sm">
+                  {order.items.map((item) => (
+                    <li key={item.id}>
+                      {item.quantity} × {item.name} — {item.lineTotal.toString()} ₼
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </main>
+  );
+}

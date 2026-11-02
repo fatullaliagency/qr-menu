@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { db } from "@/app/lib/db";
 import {
   hasSuperAdminSession,
@@ -163,6 +164,12 @@ async function SuperAdminContent({ searchParams }: Props) {
                     <span className="block text-xs font-normal text-zinc-500">
                       {restaurant.slug}
                     </span>
+                    <Link
+                      href={`/superadmin/restaurants/${encodeURIComponent(restaurant.slug)}/orders`}
+                      className="mt-2 inline-block text-sm font-medium text-blue-700 underline"
+                    >
+                      Sifarişlərə bax
+                    </Link>
                   </td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
