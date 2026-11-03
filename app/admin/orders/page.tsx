@@ -2,13 +2,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 
 type OrdersPageProps = {
-  searchParams: Promise<{ status?: string | string[] }>;
+  searchParams: Promise<{
+    status?: string | string[];
+    method?: string | string[];
+    payment?: string | string[];
+  }>;
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -18,6 +22,20 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   ON_THE_WAY: "Çatdırılma yolundadır",
   DELIVERED: "Çatdırıldı",
   CANCELLED: "Ləğv edildi",
+};
+
+const METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Nağd",
+  ONLINE_CARD: "Onlayn kart",
+  MANUAL_TRANSFER: "Köçürmə",
+};
+
+const PAYMENT_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "Ödəniş gözlənilir",
+  AWAITING_VERIFICATION: "Təsdiq gözlənilir",
+  PAID: "Ödənilib",
+  FAILED: "Uğursuz",
+  REFUNDED: "Geri qaytarılıb",
 };
 
 const NEXT_STATUSES: Record<OrderStatus, readonly OrderStatus[]> = {
@@ -160,11 +178,23 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   const selectedStatus: OrderStatus | null = isOrderStatus(requestedStatus)
     ? requestedStatus
     : null;
+  const selectedMethod: PaymentMethod | null =
+    typeof query.method === "string" &&
+    Object.prototype.hasOwnProperty.call(METHOD_LABELS, query.method)
+      ? (query.method as PaymentMethod)
+      : null;
+  const selectedPayment: PaymentStatus | null =
+    typeof query.payment === "string" &&
+    Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, query.payment)
+      ? (query.payment as PaymentStatus)
+      : null;
 
   const orders = await db.order.findMany({
     where: {
       restaurantId: session.restaurantId,
       ...(selectedStatus ? { status: selectedStatus } : {}),
+      ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
+      ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -189,8 +219,9 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
         <OrdersAutoRefresh />
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-lg font-semibold">Sifarişləri statusa görə süz</h2>
-          <form key={selectedStatus ?? "ALL"} method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
+          <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
+          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}`}
+            method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş statusu
               <select
@@ -200,6 +231,32 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               >
                 <option value="ALL">Bütün statuslar</option>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-[190px] flex-1 text-sm font-medium">
+              Ödəniş üsulu
+              <select
+                name="method"
+                defaultValue={selectedMethod ?? "ALL"}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              >
+                <option value="ALL">Bütün üsullar</option>
+                {Object.entries(METHOD_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-[190px] flex-1 text-sm font-medium">
+              Ödəniş statusu
+              <select
+                name="payment"
+                defaultValue={selectedPayment ?? "ALL"}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              >
+                <option value="ALL">Bütün ödəniş statusları</option>
+                {Object.entries(PAYMENT_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
                 ))}
               </select>
@@ -216,14 +273,16 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
           <p className="mt-3 text-sm text-zinc-600">
             Göstərilən sifariş: <strong>{orders.length}</strong>
             {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
+            {" · "}{selectedMethod ? METHOD_LABELS[selectedMethod] : "Bütün üsullar"}
+            {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {" · "}Ən son 50 sifariş
           </p>
         </section>
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            {selectedStatus
-              ? "Bu statusda sifariş tapılmadı."
+            {selectedStatus || selectedMethod || selectedPayment
+              ? "Seçilmiş filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
         )}
@@ -281,15 +340,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               </p>
               <p>
                 <strong>Ödəniş üsulu:</strong>{" "}
-                {order.paymentMethod}
+                {METHOD_LABELS[order.paymentMethod]}
               </p>
               <p>
                 <strong>Ödəniş statusu:</strong>{" "}
-                {order.paymentStatus === "PAID"
-                  ? "Ödənilib"
-                  : order.paymentStatus === "PENDING"
-                    ? "Ödəniş gözlənilir"
-                    : order.paymentStatus}
+                {PAYMENT_LABELS[order.paymentStatus]}
               </p>
 
               {order.paymentMethod === "CASH" &&
