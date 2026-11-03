@@ -68,6 +68,13 @@ const STATUS_BUTTON_LABELS: Record<OrderStatus, string> = {
   CANCELLED: "Sifarişi ləğv et",
 };
 
+// Tel-URL yalnız rəqəmlərdən (və başlanğıc + işarəsindən) ibarətdir.
+function safeTelHref(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return null;
+  return "tel:" + (phone.trim().startsWith("+") ? "+" : "") + digits;
+}
+
 function isOrderStatus(
   value: FormDataEntryValue | null
 ): value is OrderStatus {
@@ -389,9 +396,12 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   ]);
   const pageCount = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
-  const orderBy: Prisma.OrderOrderByWithRelationInput[] = overdueOnly
-    ? [{ createdAt: "asc" }, { id: "asc" }]
-    : [{ createdAt: "desc" }, { id: "desc" }];
+  // Gecikən yeni sifarişlər və hələ nağd ödənişi alınmayan çatdırılmış
+  // sifarişlərdə ən uzun müddət gözləyən ilk sıraya çıxır.
+  const orderBy: Prisma.OrderOrderByWithRelationInput[] =
+    overdueOnly || cashDueOnly
+      ? [{ createdAt: "asc" }, { id: "asc" }]
+      : [{ createdAt: "desc" }, { id: "desc" }];
   const orders = await db.order.findMany({
     where: filteredWhere,
     orderBy,
@@ -651,7 +661,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {orderSearch ? " · Nömrə: " + orderSearch : ""}
             {overdueOnly ? " · Əvvəlcə ən köhnə gecikən sifarişlər" : ""}
-            {cashDueOnly ? " · Çatdırılıb, nağd ödənişi gözlənilir" : ""}
+            {cashDueOnly ? " · Nağd ödənişi gözləyənlər — ən köhnədən" : ""}
             {dateRange ? " · Tarix: " + dateRange.from + " — " + dateRange.to : ""}
             {" · "}Səhifə {page} / {pageCount}
           </p>
@@ -709,9 +719,19 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             <p>
               <strong>Müştəri:</strong> {order.customerName}
             </p>
-            <p>
-              <strong>Telefon:</strong> {order.customerPhone}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p>
+                <strong>Telefon:</strong> {order.customerPhone}
+              </p>
+              {safeTelHref(order.customerPhone) && (
+                <a
+                  href={safeTelHref(order.customerPhone) ?? undefined}
+                  className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                >
+                  Müştəriyə zəng et
+                </a>
+              )}
+            </div>
             <p>
               <strong>Ünvan:</strong>{" "}
               {order.addressText || "Xəritə mövqeyi"}
