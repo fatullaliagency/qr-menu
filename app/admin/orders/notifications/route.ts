@@ -42,6 +42,9 @@ export async function GET() {
   // Müştəri adı, telefon, ünvan və səbət məlumatları bu API-də yoxdur.
   return NextResponse.json(
     {
+      // Opaque to other users: this is available only after signed admin session validation.
+      // The client uses it solely to reset its alert baseline on restaurant switch.
+      scope: session.restaurantId,
       newCount,
       overdueCount,
       latestOrder: newestOrder
