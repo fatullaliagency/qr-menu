@@ -27,3 +27,12 @@ export function shouldNotifyOfOrder(
 ): boolean {
   return hasBaseline && isLaterOrderMarker(current, previous);
 }
+
+/** Link directly to the alerted order even if it was already confirmed. */
+export function orderAlertLink(orderId: unknown): string {
+  if (typeof orderId !== "string") return "/admin/orders";
+  const suffix = orderId.slice(-8).toLowerCase();
+  return /^[a-z0-9]{4,8}$/.test(suffix)
+    ? "/admin/orders?q=" + suffix
+    : "/admin/orders";
+}
