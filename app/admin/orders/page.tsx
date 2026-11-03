@@ -13,6 +13,7 @@ type OrdersPageProps = {
     method?: string | string[];
     payment?: string | string[];
     page?: string | string[];
+    q?: string | string[];
   }>;
 };
 
@@ -190,6 +191,15 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
       ? (query.payment as PaymentStatus)
       : null;
 
+  // Yalnız sifariş ID-sinin son simvolları üzrə axtarış; telefon/ünvan
+  // kimi şəxsi məlumatlar sorğu parametrinə daxil edilmir.
+  const searchText = typeof query.q === "string"
+    ? query.q.trim().toLowerCase()
+    : "";
+  const orderSearch = /^[a-z0-9]{4,30}$/.test(searchText)
+    ? searchText
+    : null;
+
   const PAGE_SIZE = 50;
   const requestedPage =
     typeof query.page === "string" && /^[1-9][0-9]{0,3}$/.test(query.page)
@@ -200,6 +210,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     ...(selectedStatus ? { status: selectedStatus } : {}),
     ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
     ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
+    ...(orderSearch ? { id: { endsWith: orderSearch } } : {}),
   };
 
   // Səhifələmə filtrdən sonrakı real say üzrə edilir. Ümumi statistika
@@ -236,6 +247,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     if (selectedStatus) params.set("status", selectedStatus);
     if (selectedMethod) params.set("method", selectedMethod);
     if (selectedPayment) params.set("payment", selectedPayment);
+    if (orderSearch) params.set("q", orderSearch);
     params.set("page", String(nextPage));
     return "/admin/orders?" + params.toString();
   };
@@ -310,8 +322,20 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
-          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}`}
+          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}`}
             method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
+            <label className="min-w-[190px] flex-1 text-sm font-medium">
+              Sifariş nömrəsi
+              <input
+                name="q"
+                type="search"
+                maxLength={30}
+                pattern="[A-Za-z0-9]{4,30}"
+                defaultValue={orderSearch ?? ""}
+                placeholder="Sifarişin son 8 simvolu"
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              />
+            </label>
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş statusu
               <select
@@ -365,14 +389,15 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
             {" · "}{selectedMethod ? METHOD_LABELS[selectedMethod] : "Bütün üsullar"}
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
+            {orderSearch ? " · Nömrə: " + orderSearch : ""}
             {" · "}Səhifə {page} / {pageCount}
           </p>
         </section>
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            {selectedStatus || selectedMethod || selectedPayment
-              ? "Seçilmiş filtrlərə uyğun sifariş tapılmadı."
+            {selectedStatus || selectedMethod || selectedPayment || orderSearch
+              ? "Axtarış və filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
         )}
