@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
@@ -18,7 +19,15 @@ const ORDER_STATUS: Record<string, string> = {
   CANCELLED: "Ləğv edildi",
 };
 
-export default async function KitchenPrintPage({ params }: PrintPageProps) {
+export default function KitchenPrintPage(props: PrintPageProps) {
+  return (
+    <Suspense fallback={<main className="p-8">Çap qəbzi hazırlanır...</main>}>
+      <KitchenPrintContent {...props} />
+    </Suspense>
+  );
+}
+
+async function KitchenPrintContent({ params }: PrintPageProps) {
   // Qəbz yalnız imzalı restoran sessiyası ilə açılır.
   // İcazə yoxlaması browser query parametrinə deyil, sessiyaya əsaslanır.
   const session = await getAdminSession();
