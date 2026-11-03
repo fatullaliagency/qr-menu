@@ -7,6 +7,10 @@ import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 
+type OrdersPageProps = {
+  searchParams: Promise<{ status?: string | string[] }>;
+};
+
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: "Yeni sifariş",
   CONFIRMED: "Təsdiqləndi",
@@ -117,15 +121,15 @@ async function confirmCashPayment(formData: FormData) {
   revalidatePath("/admin/orders");
 }
 
-export default function OrdersPage() {
+export default function OrdersPage(props: OrdersPageProps) {
   return (
     <Suspense fallback={<main className="p-8">Yüklənir...</main>}>
-      <OrdersContent />
+      <OrdersContent {...props} />
     </Suspense>
   );
 }
 
-async function OrdersContent() {
+async function OrdersContent({ searchParams }: OrdersPageProps) {
   const session = await getAdminSession();
 
   if (!session) {
@@ -148,8 +152,20 @@ async function OrdersContent() {
     return <main className="p-8">Restoran tapılmadı.</main>;
   }
 
+  // Status yalnız əvvəlcədən icazə verilmiş OrderStatus dəyərlərindən biridir.
+  // Restoran ID-si isə heç vaxt URL-dən deyil, yalnız admin sessiyasından gəlir.
+  const query = await searchParams;
+  const requestedStatus =
+    typeof query.status === "string" ? query.status : null;
+  const selectedStatus: OrderStatus | null = isOrderStatus(requestedStatus)
+    ? requestedStatus
+    : null;
+
   const orders = await db.order.findMany({
-    where: { restaurantId: session.restaurantId },
+    where: {
+      restaurantId: session.restaurantId,
+      ...(selectedStatus ? { status: selectedStatus } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: { items: true },
@@ -172,9 +188,43 @@ async function OrdersContent() {
 
         <OrdersAutoRefresh />
 
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-lg font-semibold">Sifarişləri statusa görə süz</h2>
+          <form method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
+            <label className="min-w-[190px] flex-1 text-sm font-medium">
+              Sifariş statusu
+              <select
+                name="status"
+                defaultValue={selectedStatus ?? "ALL"}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              >
+                <option value="ALL">Bütün statuslar</option>
+                {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <button type="submit"
+              className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white">
+              Filtrlə
+            </button>
+            <Link href="/admin/orders"
+              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-zinc-900">
+              Filtri sıfırla
+            </Link>
+          </form>
+          <p className="mt-3 text-sm text-zinc-600">
+            Göstərilən sifariş: <strong>{orders.length}</strong>
+            {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
+            {" · "}Ən son 50 sifariş
+          </p>
+        </section>
+
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            Hələ sifariş yoxdur.
+            {selectedStatus
+              ? "Bu statusda sifariş tapılmadı."
+              : "Hələ sifariş yoxdur."}
           </div>
         )}
 
