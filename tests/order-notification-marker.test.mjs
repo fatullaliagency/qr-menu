@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isLaterOrderMarker, shouldNotifyOfOrder } from "../app/lib/order-notification-marker.ts";
+import { isLaterOrderMarker, shouldNotifyOfOrder, orderAlertLink } from "../app/lib/order-notification-marker.ts";
 
 const first = { id: "a100", createdAt: "2026-11-04T08:00:00.000Z" };
 const later = { id: "a101", createdAt: "2026-11-04T08:00:01.000Z" };
@@ -33,4 +33,12 @@ test("Equal timestamps are compared by order ID consistently with the DB", () =>
   const twin = { id: "a101", createdAt: first.createdAt };
   assert.equal(isLaterOrderMarker(twin, first), true);
   assert.equal(isLaterOrderMarker(first, twin), false);
+});
+
+test("Notification link locates the order without requiring NEW status", () => {
+  assert.equal(orderAlertLink("cmxy0123456789abcdefgh"), "/admin/orders?q=abcdefgh");
+  assert.equal(orderAlertLink("abcd"), "/admin/orders?q=abcd");
+  assert.equal(orderAlertLink("id"), "/admin/orders");
+  assert.equal(orderAlertLink("unknown/🚀"), "/admin/orders");
+  assert.equal(orderAlertLink(null), "/admin/orders");
 });
