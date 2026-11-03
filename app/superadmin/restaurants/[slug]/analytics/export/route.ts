@@ -6,8 +6,6 @@ import {
   parseReportRange,
 } from "@/app/lib/superadmin-report";
 
-export const dynamic = "force-dynamic";
-
 type Context = { params: Promise<{ slug: string }> };
 
 function csvAmount(cents: number): string {
