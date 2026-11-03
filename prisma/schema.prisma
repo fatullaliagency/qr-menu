@@ -32,6 +32,7 @@ createdAt DateTime @default(now()) @db.Timestamp(3)
   menuItems    MenuItem[]
   orders       Order[]
   paymentSettings RestaurantPaymentSettings?
+  statusEvents OrderStatusEvent[]
 }
 
 
@@ -111,6 +112,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   items OrderItem[]
+  statusEvents OrderStatusEvent[]
 
   @@index([restaurantId, createdAt])
 }
@@ -163,4 +165,28 @@ model RestaurantPaymentSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+
+/**
+ * Sifarişin yeni statusa keçmə tarixçəsi.
+ * Köhnə sifarişlərə saxta keçid tarixçəsi əlavə edilmir.
+ * Yalnız staging migration tətbiq edildikdən sonra istifadə olunmalıdır.
+ */
+model OrderStatusEvent {
+  id String @id @default(cuid())
+
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+
+  fromStatus OrderStatus?
+  toStatus OrderStatus
+  actor String @db.VarChar(16)
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+
+  @@index([orderId, createdAt])
+  @@index([restaurantId, createdAt])
 }
