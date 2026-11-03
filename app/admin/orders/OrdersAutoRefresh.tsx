@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isLaterOrderMarker, shouldNotifyOfOrder } from "@/app/lib/order-notification-marker";
 
 const REFRESH_MS = 10_000;
 
@@ -13,12 +14,6 @@ type NotificationSnapshot = {
   overdueCount: number;
   latestOrder: LatestOrder | null;
 };
-
-function newerThan(current: LatestOrder, previous: LatestOrder | null): boolean {
-  if (!previous) return true;
-  if (current.createdAt > previous.createdAt) return true;
-  return current.createdAt === previous.createdAt && current.id > previous.id;
-}
 
 /**
  * Sifariş səhifəsi açıq olduqda hər 10 saniyədə sessiya ilə qorunan
@@ -103,12 +98,10 @@ export default function OrdersAutoRefresh() {
         scopeRef.current = data.scope;
 
         const latest = data.latestOrder;
-        const isNewOrder =
-          hasBaseline.current &&
-          data.newCount > 0 &&
-          latest !== null &&
-          newerThan(latest, latestRef.current);
-        if (!hasBaseline.current || (latest && newerThan(latest, latestRef.current))) {
+        const isNewOrder = shouldNotifyOfOrder(
+          latest, latestRef.current, hasBaseline.current
+        );
+        if (!hasBaseline.current || isLaterOrderMarker(latest, latestRef.current)) {
           latestRef.current = latest;
         }
         hasBaseline.current = true;
