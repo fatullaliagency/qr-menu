@@ -67,6 +67,11 @@ test("Order notification endpoint requires session and returns only a tiny no-st
   assert.match(notifications, /private, no-store/);
   assert.equal((notifications.match(/restaurantId: session\.restaurantId/g) ?? []).length, 3);
   assert.match(notifications, /select: \{ id: true, createdAt: true \}/);
+  // The creation watermark MUST include already-confirmed orders, not only NEW ones.
+  assert.match(notifications, /where: \{ restaurantId: session\.restaurantId \},\s*orderBy:/);
+  assert.doesNotMatch(notifications, /where: \{ restaurantId: session\.restaurantId, status: "NEW" \},\s*orderBy:/);
+  assert.match(notificationClient, /shouldNotifyOfOrder\(/);
+  assert.doesNotMatch(notificationClient, /data\.newCount > 0/);
   for (const forbidden of ["customerPhone", "customerName", "addressText", "customerNote", "paymentStatus", "total: true"]) {
     assert.equal(notifications.includes(forbidden), false);
   }
