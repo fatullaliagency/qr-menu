@@ -190,7 +190,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri statusa görə süz</h2>
-          <form method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
+          <form key={selectedStatus ?? "ALL"} method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş statusu
               <select
