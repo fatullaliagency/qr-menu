@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
+import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 
 type OrdersPageProps = {
@@ -15,6 +16,8 @@ type OrdersPageProps = {
     page?: string | string[];
     q?: string | string[];
     urgent?: string | string[];
+    from?: string | string[];
+    to?: string | string[];
   }>;
 };
 
@@ -205,6 +208,16 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     ? searchText
     : null;
 
+  // Tarixlər Asia/Baku (UTC+04:00) gün sərhədlərinə çevrilir.
+  // Yalnız hər iki tarix düzgün veriləndə filtr işləyir (maksimum 90 gün).
+  const requestedDateFilter = query.from !== undefined || query.to !== undefined;
+  const fromValue = typeof query.from === "string" ? query.from : null;
+  const toValue = typeof query.to === "string" ? query.to : null;
+  const dateRange = requestedDateFilter
+    ? parseReportRange(fromValue, toValue)
+    : null;
+  const invalidDateFilter = requestedDateFilter && !dateRange;
+
   const PAGE_SIZE = 50;
   const requestedPage =
     typeof query.page === "string" && /^[1-9][0-9]{0,3}$/.test(query.page)
@@ -217,7 +230,20 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
     ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
     ...(orderSearch ? { id: { endsWith: orderSearch } } : {}),
-    ...(overdueCutoff ? { createdAt: { lt: overdueCutoff } } : {}),
+    ...(dateRange
+      ? {
+          createdAt: {
+            gte: dateRange.startUtc,
+            lt: overdueCutoff && overdueCutoff < dateRange.endUtc
+              ? overdueCutoff
+              : dateRange.endUtc,
+          },
+        }
+      : overdueCutoff
+        ? { createdAt: { lt: overdueCutoff } }
+        : {}),
+    // Yanlış tarix sorğusunu səssizcə "bütün sifarişlər" kimi işlətmirik.
+    ...(invalidDateFilter ? { id: { in: [] } } : {}),
   };
 
   // Səhifələmə filtrdən sonrakı real say üzrə edilir. Ümumi statistika
@@ -259,6 +285,10 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     if (selectedPayment) params.set("payment", selectedPayment);
     if (orderSearch) params.set("q", orderSearch);
     if (overdueOnly) params.set("urgent", "1");
+    if (dateRange) {
+      params.set("from", dateRange.from);
+      params.set("to", dateRange.to);
+    }
     params.set("page", String(nextPage));
     return "/admin/orders?" + params.toString();
   };
@@ -333,7 +363,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
-          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}`}
+          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}:${dateRange?.from ?? ""}:${dateRange?.to ?? ""}`}
             method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş nömrəsi
@@ -386,6 +416,24 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 ))}
               </select>
             </label>
+            <label className="min-w-[150px] text-sm font-medium">
+              Başlanğıc tarixi (Bakı)
+              <input
+                type="date"
+                name="from"
+                defaultValue={dateRange?.from ?? fromValue ?? ""}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              />
+            </label>
+            <label className="min-w-[150px] text-sm font-medium">
+              Son tarix (Bakı)
+              <input
+                type="date"
+                name="to"
+                defaultValue={dateRange?.to ?? toValue ?? ""}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900"
+              />
+            </label>
             <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-950">
               <input type="checkbox" name="urgent" value="1" defaultChecked={overdueOnly}
                 className="h-4 w-4 accent-amber-700" />
@@ -400,6 +448,13 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               Filtri sıfırla
             </Link>
           </form>
+          {invalidDateFilter && (
+            <p role="alert" className="mt-3 text-sm font-semibold text-red-700">
+              Tarix aralığı yanlışdır. Hər iki tarixi seçin; başlanğıc son tarixdən
+              gec olmasın və müddət maksimum {MAX_REPORT_DAYS} gün olsun.
+              Səhv tarixlə sifariş siyahısı göstərilmir.
+            </p>
+          )}
           <p className="mt-3 text-sm text-zinc-600">
             Göstərilən sifariş: <strong>{orders.length}</strong> / {filteredCount}
             {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
@@ -407,13 +462,14 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {orderSearch ? " · Nömrə: " + orderSearch : ""}
             {overdueOnly ? " · Əvvəlcə ən köhnə gecikən sifarişlər" : ""}
+            {dateRange ? " · Tarix: " + dateRange.from + " — " + dateRange.to : ""}
             {" · "}Səhifə {page} / {pageCount}
           </p>
         </section>
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            {selectedStatus || selectedMethod || selectedPayment || orderSearch || overdueOnly
+            {selectedStatus || selectedMethod || selectedPayment || orderSearch || overdueOnly || requestedDateFilter
               ? "Axtarış və filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
