@@ -31,7 +31,9 @@ export async function GET() {
       },
     }),
     db.order.findFirst({
-      where: { restaurantId: session.restaurantId },
+      // Yalnız NEW statuslu sifarişlər xəbərdarlıq üçün əsas götürülür.
+      // Köhnə/tamamlanmış sifarişlərin seçilməsi yanlış bildiriş yaratmasın.
+      where: { restaurantId: session.restaurantId, status: "NEW" },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { id: true, createdAt: true },
     }),

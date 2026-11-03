@@ -57,6 +57,11 @@ export default function OrdersAutoRefresh() {
           if (!cancelled) {
             setNewCount(null);
             setOverdueCount(null);
+            setLastAlert(null);
+            // Digər hesaba keçid və sessiya bitməsindən sonra köhnə sifarişin
+            // bazası yeni restoranın sifarişi kimi qəbul edilməməlidir.
+            hasBaseline.current = false;
+            latestRef.current = null;
             setError("Sessiya bitib. Admin panelinə yenidən daxil olun.");
             router.refresh();
           }
@@ -82,6 +87,7 @@ export default function OrdersAutoRefresh() {
         const latest = data.latestOrder;
         const isNewOrder =
           hasBaseline.current &&
+          data.newCount > 0 &&
           latest !== null &&
           newerThan(latest, latestRef.current);
         if (!hasBaseline.current || (latest && newerThan(latest, latestRef.current))) {
@@ -176,10 +182,14 @@ export default function OrdersAutoRefresh() {
     }
 
     // İcazə sorğusu yalnız istifadəçi bu düyməni basdıqda göstərilir.
-    const askPermission =
-      "Notification" in window && Notification.permission === "default"
-        ? Notification.requestPermission()
-        : null;
+    let askPermission: Promise<NotificationPermission> | null = null;
+    if ("Notification" in window && Notification.permission === "default") {
+      try {
+        askPermission = Notification.requestPermission();
+      } catch {
+        // Bəzi brauzerlər icazə sorğusunu rədd edə bilər; səs seçimi işləyir.
+      }
+    }
     try {
       if (!audioRef.current && "AudioContext" in window) {
         audioRef.current = new AudioContext();
