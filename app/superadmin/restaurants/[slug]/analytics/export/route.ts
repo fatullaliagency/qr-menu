@@ -5,13 +5,9 @@ import {
   getDailyReport,
   parseReportRange,
 } from "@/app/lib/superadmin-report";
+import { buildDailyReportXlsx } from "@/app/lib/excel-report";
 
 type Context = { params: Promise<{ slug: string }> };
-
-function csvAmount(cents: number): string {
-  // Azərbaycanca Excel üçün vergül onluq ayırıcıdır.
-  return (cents / 100).toFixed(2).replace(".", ",");
-}
 
 export async function GET(request: NextRequest, { params }: Context) {
   // İxrac üçün də server səviyyəsində Super Admin icazəsi tələb olunur.
@@ -40,33 +36,14 @@ export async function GET(request: NextRequest, { params }: Context) {
   if (!restaurant) return new Response("Restoran tapılmadı.", { status: 404 });
 
   const report = await getDailyReport(restaurant.id, range);
-  // CSV faylında müştərinin adı, telefonu, ünvanı və sifariş identifikatoru yoxdur.
-  const rows = [
-    "sep=;",
-    "Tarix;Sifariş sayı;Hazırda yeni;Ödənişi təsdiqlənən;Təsdiqlənmiş məbləğ (AZN)",
-    ...report.rows.map((row) =>
-      [
-        row.day,
-        row.orders,
-        row.newOrders,
-        row.paidOrders,
-        csvAmount(row.paidCents),
-      ].join(";")
-    ),
-    [
-      "Cəmi",
-      report.totals.orders,
-      report.totals.newOrders,
-      report.totals.paidOrders,
-      csvAmount(report.totals.paidCents),
-    ].join(";"),
-  ];
-
-  const filename = "qr-menu-" + slug + "-" + range.from + "-" + range.to + ".csv";
-  return new Response("\uFEFF" + rows.join("\r\n") + "\r\n", {
+  // Azərbaycanca başlıqlar və tarixlər Excel-də düzgün göstərilir.
+  // Şəxsi müştəri məlumatları bu fayla daxil edilmir.
+  const bytes = buildDailyReportXlsx(report.rows, report.totals);
+  const filename = "qr-menu-" + slug + "-" + range.from + "-" + range.to + ".xlsx";
+  return new Response(Uint8Array.from(bytes).buffer as ArrayBuffer, {
     status: 200,
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": 'attachment; filename="' + filename + '"',
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

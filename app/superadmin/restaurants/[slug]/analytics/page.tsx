@@ -118,7 +118,7 @@ async function RestaurantAnalyticsContent({ params, searchParams }: Props) {
               </p>
               <a href={exportPath ?? undefined}
                 className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
-                Excel üçün CSV yüklə
+                Excel faylını (.xlsx) yüklə
               </a>
             </div>
           )}
