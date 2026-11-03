@@ -259,6 +259,12 @@ async function SuperAdminContent({ searchParams }: Props) {
                       Sifarişlərə bax
                     </Link>
                     <Link
+                      href={`/superadmin/restaurants/${encodeURIComponent(restaurant.slug)}/menu`}
+                      className="mt-2 ml-4 inline-block text-sm font-medium text-blue-700 underline"
+                    >
+                      Menyuya bax
+                    </Link>
+                    <Link
                       href={`/superadmin/restaurants/${encodeURIComponent(restaurant.slug)}/payment-settings`}
                       className="mt-2 ml-4 inline-block text-sm font-medium text-blue-700 underline"
                     >
