@@ -136,6 +136,15 @@ function actionNoticeUrl(formData: FormData, notice: NoticeCode): string {
           params.set("urgent", "1");
           params.set("status", "NEW");
         }
+        // Nağd ödənişin təsdiqindən sonra istifadəçi eyni xüsusi filtrdə
+        // qalmalıdır. Ziddiyyətli sorğu parametrlərini normallaşdırırıq.
+        if (source.get("cashDue") === "1") {
+          params.delete("urgent");
+          params.set("cashDue", "1");
+          params.set("status", "DELIVERED");
+          params.set("method", "CASH");
+          params.set("payment", "PENDING");
+        }
         if (from !== null && to !== null && parseReportRange(from, to)) {
           params.set("from", from);
           params.set("to", to);
