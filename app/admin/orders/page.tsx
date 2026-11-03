@@ -9,6 +9,7 @@ import { getAdminSession } from "@/app/lib/admin-auth";
 import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 import OrderSubmitButton from "./OrderSubmitButton";
+import CopyKitchenOrderButton from "./CopyKitchenOrderButton";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 
 type OrdersPageProps = {
@@ -729,6 +730,15 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                   {item.lineTotal.toString()} ₼
                 </p>
               ))}
+              <div className="pt-3">
+                <CopyKitchenOrderButton
+                  orderId={order.id}
+                  items={order.items.map((item) => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                  }))}
+                />
+              </div>
             </div>
 
             <p className="font-bold">
