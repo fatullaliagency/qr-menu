@@ -124,6 +124,22 @@ async function KitchenScreenContent() {
                     </li>
                   ))}
                 </ul>
+                <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-4">
+                  <Link
+                    href={`/admin/orders?q=${encodeURIComponent(order.id.slice(-8))}`}
+                    className="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                  >
+                    Sifarişi idarə et
+                  </Link>
+                  <Link
+                    href={`/admin/orders/${encodeURIComponent(order.id)}/print`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900"
+                  >
+                    🖨️ Qəbzi çap et
+                  </Link>
+                </div>
               </article>
             );
           })}
