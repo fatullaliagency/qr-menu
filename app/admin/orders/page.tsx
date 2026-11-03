@@ -221,6 +221,9 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     ? parseReportRange(fromValue, toValue)
     : null;
   const invalidDateFilter = requestedDateFilter && !dateRange;
+  // Bakı saat qurşağı ilə bu günün tarixini ortaq tarix köməkçisindən alırıq.
+  // Giriş sessiyası artıq yoxlandığı üçün bu hesab sorğu vaxtında aparılır.
+  const todayKey = parseReportRange(null, null)?.to ?? "";
 
   const PAGE_SIZE = 50;
   const requestedPage =
@@ -447,6 +450,14 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white">
               Filtrlə
             </button>
+            {todayKey && (
+              <Link
+                href={`/admin/orders?from=${todayKey}&to=${todayKey}`}
+                className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                Bugünkü sifarişlər
+              </Link>
+            )}
             <Link href="/admin/orders"
               className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-zinc-900">
               Filtri sıfırla
