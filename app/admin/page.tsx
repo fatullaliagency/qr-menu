@@ -287,6 +287,12 @@ async function AdminContent({ searchParams }: PageProps) {
                 📦 Sifarişlər
               </Link>
               <Link
+                href="/admin/payment-settings"
+                className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                VÖEN və ödəniş məlumatları
+              </Link>
+              <Link
                 href={`/${restaurant.slug}`}
                 target="_blank"
                 className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white"
