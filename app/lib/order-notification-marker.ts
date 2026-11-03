@@ -1,0 +1,29 @@
+/**
+ * The latest order creation marker is independent from mutable order status.
+ * The ordering matches Prisma's createdAt desc, id desc sort.
+ */
+export type OrderNotificationMarker = {
+  id: string;
+  createdAt: string;
+};
+
+export function isLaterOrderMarker(
+  current: OrderNotificationMarker | null,
+  previous: OrderNotificationMarker | null
+): boolean {
+  if (!current) return false;
+  if (!previous) return true;
+  if (current.createdAt !== previous.createdAt) {
+    return current.createdAt > previous.createdAt;
+  }
+  return current.id > previous.id;
+}
+
+/** Never alert on initial loading; only later creation markers may alert. */
+export function shouldNotifyOfOrder(
+  current: OrderNotificationMarker | null,
+  previous: OrderNotificationMarker | null,
+  hasBaseline: boolean
+): boolean {
+  return hasBaseline && isLaterOrderMarker(current, previous);
+}
