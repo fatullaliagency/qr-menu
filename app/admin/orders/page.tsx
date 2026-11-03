@@ -210,9 +210,13 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
   // Tarixlər Asia/Baku (UTC+04:00) gün sərhədlərinə çevrilir.
   // Yalnız hər iki tarix düzgün veriləndə filtr işləyir (maksimum 90 gün).
-  const requestedDateFilter = query.from !== undefined || query.to !== undefined;
-  const fromValue = typeof query.from === "string" ? query.from : null;
-  const toValue = typeof query.to === "string" ? query.to : null;
+  const fromValue = typeof query.from === "string" ? query.from.trim() : null;
+  const toValue = typeof query.to === "string" ? query.to.trim() : null;
+  // Boş tarix inputları GET formasında from=&to= kimi göndərilir:
+  // ikisi də boşdursa, tarix filtri tətbiq edilmir.
+  const requestedDateFilter =
+    (query.from !== undefined || query.to !== undefined) &&
+    !(fromValue === "" && toValue === "");
   const dateRange = requestedDateFilter
     ? parseReportRange(fromValue, toValue)
     : null;
