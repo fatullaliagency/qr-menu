@@ -2,11 +2,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
+import OrderSubmitButton from "./OrderSubmitButton";
 
 type OrdersPageProps = {
   searchParams: Promise<{
@@ -18,6 +20,7 @@ type OrdersPageProps = {
     urgent?: string | string[];
     from?: string | string[];
     to?: string | string[];
+    notice?: string | string[];
   }>;
 };
 
@@ -71,13 +74,77 @@ function isOrderStatus(
   );
 }
 
+type NoticeCode =
+  | "confirmed" | "preparing" | "on-the-way" | "delivered" | "cancelled"
+  | "cash-paid" | "stale" | "invalid";
+
+const NOTICE_LABELS: Record<NoticeCode, string> = {
+  confirmed: "Sifariş təsdiqləndi.",
+  preparing: "Sifarişin hazırlanmasına başlandı.",
+  "on-the-way": "Sifariş çatdırılmaya göndərildi.",
+  delivered: "Sifariş çatdırıldı.",
+  cancelled: "Sifariş ləğv edildi.",
+  "cash-paid": "Nağd ödənişin alındığı təsdiqləndi.",
+  stale: "Sifariş artıq dəyişdirilib, tapılmayıb və ya giriş icazəniz yoxdur. Səhifəni yeniləyin.",
+  invalid: "Sorğu yanlışdır. Səhifəni yeniləyib təkrar yoxlayın.",
+};
+
+const STATUS_NOTICE: Record<OrderStatus, NoticeCode> = {
+  NEW: "invalid",
+  CONFIRMED: "confirmed",
+  PREPARING: "preparing",
+  ON_THE_WAY: "on-the-way",
+  DELIVERED: "delivered",
+  CANCELLED: "cancelled",
+};
+
+// Yönləndirməni yalnız /admin/orders ilə məhdudlaşdırırıq. Gizli input
+// etibarlı sayılmır; URL parametrləri serverdə yenidən validasiya olunur.
+function actionNoticeUrl(formData: FormData, notice: NoticeCode): string {
+  const raw = formData.get("returnTo");
+  const params = new URLSearchParams();
+  if (typeof raw === "string" && raw.length <= 1024) {
+    try {
+      const parsed = new URL(raw, "https://qr-menu-actions.invalid");
+      if (parsed.origin === "https://qr-menu-actions.invalid" &&
+          parsed.pathname === "/admin/orders") {
+        const source = parsed.searchParams;
+        const status = source.get("status");
+        const method = source.get("method");
+        const payment = source.get("payment");
+        const q = source.get("q");
+        const page = source.get("page");
+        const from = source.get("from");
+        const to = source.get("to");
+        if (isOrderStatus(status)) params.set("status", status);
+        if (method && Object.prototype.hasOwnProperty.call(METHOD_LABELS, method))
+          params.set("method", method);
+        if (payment && Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, payment))
+          params.set("payment", payment);
+        if (q && /^[a-z0-9]{4,30}$/.test(q)) params.set("q", q);
+        if (source.get("urgent") === "1") {
+          params.set("urgent", "1");
+          params.set("status", "NEW");
+        }
+        if (from !== null && to !== null && parseReportRange(from, to)) {
+          params.set("from", from);
+          params.set("to", to);
+        }
+        if (page && /^[1-9][0-9]{0,3}$/.test(page)) params.set("page", page);
+      }
+    } catch {
+      // Yanlış returnTo yox sayılır.
+    }
+  }
+  params.set("notice", notice);
+  return "/admin/orders?" + params.toString();
+}
+
 async function updateOrderStatus(formData: FormData) {
   "use server";
 
   const session = await getAdminSession();
-  if (!session) {
-    throw new Error("Giriş tələb olunur.");
-  }
+  if (!session) redirect("/admin");
 
   const orderId = formData.get("orderId");
   const currentStatus = formData.get("currentStatus");
@@ -91,7 +158,7 @@ async function updateOrderStatus(formData: FormData) {
     !isOrderStatus(nextStatus) ||
     !NEXT_STATUSES[currentStatus].includes(nextStatus)
   ) {
-    throw new Error("Sifariş statusu üçün yanlış sorğu.");
+    redirect(actionNoticeUrl(formData, "invalid"));
   }
 
   const result = await db.order.updateMany({
@@ -104,12 +171,11 @@ async function updateOrderStatus(formData: FormData) {
   });
 
   if (result.count !== 1) {
-    throw new Error(
-      "Sifariş tapılmadı və ya status artıq dəyişdirilib. Səhifəni yeniləyin."
-    );
+    redirect(actionNoticeUrl(formData, "stale"));
   }
 
   revalidatePath("/admin/orders");
+  redirect(actionNoticeUrl(formData, STATUS_NOTICE[nextStatus]));
 }
 
 // Nağd pul həqiqətən təhvil alındıqdan sonra restoran admini təsdiqləyir.
@@ -118,13 +184,11 @@ async function confirmCashPayment(formData: FormData) {
   "use server";
 
   const session = await getAdminSession();
-  if (!session) {
-    throw new Error("Giriş tələb olunur.");
-  }
+  if (!session) redirect("/admin");
 
   const orderId = formData.get("orderId");
   if (typeof orderId !== "string" || orderId.length < 1 || orderId.length > 150) {
-    throw new Error("Yanlış sifariş.");
+    redirect(actionNoticeUrl(formData, "invalid"));
   }
 
   const result = await db.order.updateMany({
@@ -139,10 +203,11 @@ async function confirmCashPayment(formData: FormData) {
   });
 
   if (result.count !== 1) {
-    throw new Error("Ödəniş yenilənmədi. Sifarişi yeniləyib yoxlayın.");
+    redirect(actionNoticeUrl(formData, "stale"));
   }
 
   revalidatePath("/admin/orders");
+  redirect(actionNoticeUrl(formData, "cash-paid"));
 }
 
 export default function OrdersPage(props: OrdersPageProps) {
@@ -179,6 +244,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   // Status yalnız əvvəlcədən icazə verilmiş OrderStatus dəyərlərindən biridir.
   // Restoran ID-si isə heç vaxt URL-dən deyil, yalnız admin sessiyasından gəlir.
   const query = await searchParams;
+  const noticeKey = typeof query.notice === "string" ? query.notice : "";
+  const notice = Object.prototype.hasOwnProperty.call(NOTICE_LABELS, noticeKey)
+    ? NOTICE_LABELS[noticeKey as NoticeCode]
+    : null;
+  const noticeIsError = noticeKey === "stale" || noticeKey === "invalid";
   const overdueOnly = query.urgent === "1";
   const requestedStatus =
     typeof query.status === "string" ? query.status : null;
@@ -327,6 +397,21 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             Admin panelinə qayıt
           </Link>
         </div>
+
+        {notice && (
+          <div
+            role={noticeIsError ? "alert" : "status"}
+            aria-live={noticeIsError ? "assertive" : "polite"}
+            className={noticeIsError
+              ? "rounded-xl border border-red-300 bg-red-50 px-5 py-4 font-semibold text-red-900"
+              : "rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-4 font-semibold text-emerald-900"}
+          >
+            {notice}
+            <Link href={pageLink(page)} className="ml-3 text-sm underline">
+              Bildirişi bağla
+            </Link>
+          </div>
+        )}
 
         <OrdersAutoRefresh />
 
@@ -580,12 +665,10 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 order.paymentStatus === "PENDING" && (
                   <form action={confirmCashPayment} className="mt-4">
                     <input type="hidden" name="orderId" value={order.id} />
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
-                    >
+                    <input type="hidden" name="returnTo" value={pageLink(page)} />
+                    <OrderSubmitButton variant="success">
                       ✓ Nağd ödəniş alındı — təsdiqlə
-                    </button>
+                    </OrderSubmitButton>
                     <p className="mt-2 text-xs text-gray-600">
                       Bu düyməni yalnız pulu həqiqətən aldıqdan sonra basın.
                     </p>
@@ -596,6 +679,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {NEXT_STATUSES[order.status].map((nextStatus) => (
                     <form key={nextStatus} action={updateOrderStatus}>
+                      <input type="hidden" name="returnTo" value={pageLink(page)} />
                       <input
                         type="hidden"
                         name="orderId"
@@ -611,16 +695,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                         name="nextStatus"
                         value={nextStatus}
                       />
-                      <button
-                        type="submit"
-                        className={
-                          nextStatus === "CANCELLED"
-                            ? "rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                            : "rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
-                        }
+                      <OrderSubmitButton
+                        variant={nextStatus === "CANCELLED" ? "danger" : "success"}
                       >
                         {STATUS_BUTTON_LABELS[nextStatus]}
-                      </button>
+                      </OrderSubmitButton>
                     </form>
                   ))}
                 </div>
