@@ -12,6 +12,7 @@ type OrdersPageProps = {
     status?: string | string[];
     method?: string | string[];
     payment?: string | string[];
+    page?: string | string[];
   }>;
 };
 
@@ -189,19 +190,22 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
       ? (query.payment as PaymentStatus)
       : null;
 
-  // Siyahı filtrlənir, ümumi statistika isə restoranın bütün sifarişlərini əhatə edir.
-  const [orders, statusGroups, paidTotals] = await Promise.all([
-    db.order.findMany({
-      where: {
-        restaurantId: session.restaurantId,
-        ...(selectedStatus ? { status: selectedStatus } : {}),
-        ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
-        ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      include: { items: true },
-    }),
+  const PAGE_SIZE = 50;
+  const requestedPage =
+    typeof query.page === "string" && /^[1-9][0-9]{0,3}$/.test(query.page)
+      ? Number(query.page)
+      : 1;
+  const filteredWhere = {
+    restaurantId: session.restaurantId,
+    ...(selectedStatus ? { status: selectedStatus } : {}),
+    ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
+    ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
+  };
+
+  // Səhifələmə filtrdən sonrakı real say üzrə edilir. Ümumi statistika
+  // isə həmişə restoranın bütün sifarişlərini əhatə edir.
+  const [filteredCount, statusGroups, paidTotals] = await Promise.all([
+    db.order.count({ where: filteredWhere }),
     db.order.groupBy({
       by: ["status"],
       where: { restaurantId: session.restaurantId },
@@ -216,6 +220,25 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
       _count: { _all: true },
     }),
   ]);
+  const pageCount = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  const orders = await db.order.findMany({
+    where: filteredWhere,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: { items: true },
+  });
+
+  // Səhifələr arasında hər üç aktiv filtr saxlanılır.
+  const pageLink = (nextPage: number): string => {
+    const params = new URLSearchParams();
+    if (selectedStatus) params.set("status", selectedStatus);
+    if (selectedMethod) params.set("method", selectedMethod);
+    if (selectedPayment) params.set("payment", selectedPayment);
+    params.set("page", String(nextPage));
+    return "/admin/orders?" + params.toString();
+  };
 
   const counts = Object.fromEntries(
     statusGroups.map((item) => [item.status, item._count._all])
@@ -338,11 +361,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             </Link>
           </form>
           <p className="mt-3 text-sm text-zinc-600">
-            Göstərilən sifariş: <strong>{orders.length}</strong>
+            Göstərilən sifariş: <strong>{orders.length}</strong> / {filteredCount}
             {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
             {" · "}{selectedMethod ? METHOD_LABELS[selectedMethod] : "Bütün üsullar"}
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
-            {" · "}Ən son 50 sifariş
+            {" · "}Səhifə {page} / {pageCount}
           </p>
         </section>
 
@@ -352,6 +375,31 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               ? "Seçilmiş filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
+        )}
+
+        {filteredCount > PAGE_SIZE && (
+          <nav aria-label="Sifariş siyahısının səhifələri"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 shadow-sm">
+            {page > 1 ? (
+              <Link href={pageLink(page - 1)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">
+                ← Əvvəlki səhifə
+              </Link>
+            ) : (
+              <span className="px-4 py-2 text-sm text-zinc-500">İlk səhifə</span>
+            )}
+            <span className="text-sm font-semibold">
+              Səhifə {page} / {pageCount}
+            </span>
+            {page < pageCount ? (
+              <Link href={pageLink(page + 1)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">
+                Növbəti səhifə →
+              </Link>
+            ) : (
+              <span className="px-4 py-2 text-sm text-zinc-500">Son səhifə</span>
+            )}
+          </nav>
         )}
 
         {orders.map((order) => (
