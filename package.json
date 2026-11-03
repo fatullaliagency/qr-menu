@@ -9,7 +9,7 @@
     "lint": "next lint",
     "db": "prisma db push",
     "postinstall": "prisma skills sync || exit 0",
-    "test:orders": "node --experimental-strip-types --test tests/order-policy.test.mjs"
+    "test:orders": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

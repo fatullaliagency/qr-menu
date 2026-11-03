@@ -4,6 +4,7 @@ import type { OrderStatus } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import KitchenScreenRefresh from "./KitchenScreenRefresh";
+import { getKitchenPage } from "@/app/lib/kitchen-pagination";
 
 const ACTIVE_STATUSES: OrderStatus[] = ["NEW", "CONFIRMED", "PREPARING"];
 const STATUS_LABELS: Record<string, string> = {
@@ -12,15 +13,19 @@ const STATUS_LABELS: Record<string, string> = {
   PREPARING: "Hazırlanır",
 };
 
-export default function KitchenScreenPage() {
+type KitchenScreenProps = {
+  searchParams: Promise<{ page?: string | string[] }>;
+};
+
+export default function KitchenScreenPage(props: KitchenScreenProps) {
   return (
     <Suspense fallback={<main className="p-8">Mətbəx sifarişləri yüklənir...</main>}>
-      <KitchenScreenContent />
+      <KitchenScreenContent {...props} />
     </Suspense>
   );
 }
 
-async function KitchenScreenContent() {
+async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
   const session = await getAdminSession();
   if (!session) {
     return (
@@ -37,27 +42,31 @@ async function KitchenScreenContent() {
     restaurantId: session.restaurantId,
     status: { in: ACTIVE_STATUSES },
   };
-  const [restaurant, total, orders] = await Promise.all([
+  const [restaurant, total] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: session.restaurantId },
       select: { name: true },
     }),
     db.order.count({ where }),
-    db.order.findMany({
-      where,
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: 30,
-      select: {
-        id: true,
-        createdAt: true,
-        status: true,
-        items: {
-          select: { id: true, name: true, quantity: true },
-          orderBy: { id: "asc" },
-        },
-      },
-    }),
   ]);
+
+  const query = await searchParams;
+  const { page, pageCount, skip, take } = getKitchenPage(query.page, total);
+  const orders = await db.order.findMany({
+    where,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    skip,
+    take,
+    select: {
+      id: true,
+      createdAt: true,
+      status: true,
+      items: {
+        select: { id: true, name: true, quantity: true },
+        orderBy: { id: "asc" },
+      },
+    },
+  });
 
   if (!restaurant) {
     return <main className="p-8">Restoran tapılmadı.</main>;
@@ -84,8 +93,9 @@ async function KitchenScreenContent() {
       </header>
 
       {total > 30 && (
-        <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
-          İlk 30 sifariş göstərilir. Qalan {total - 30} sifariş üçün panel yenilənəcək.
+        <p role="status" className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-950">
+          {skip + 1}–{skip + orders.length} / {total} sifariş · Səhifə {page} / {pageCount}.
+          Əvvəlki və növbəti səhifə keçidlərindən istifadə edin.
         </p>
       )}
       {orders.length === 0 ? (
@@ -144,6 +154,28 @@ async function KitchenScreenContent() {
             );
           })}
         </div>
+      )}
+      {total > 30 && (
+        <nav aria-label="Mətbəx sifarişlərinin səhifələri"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
+          {page > 1 ? (
+            <Link href={`/admin/orders/kitchen?page=${page - 1}`}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold">
+              ← Əvvəlki səhifə
+            </Link>
+          ) : (
+            <span className="px-4 py-2 text-sm text-zinc-500">İlk səhifə</span>
+          )}
+          <span className="text-sm font-semibold">Səhifə {page} / {pageCount}</span>
+          {page < pageCount ? (
+            <Link href={`/admin/orders/kitchen?page=${page + 1}`}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold">
+              Növbəti səhifə →
+            </Link>
+          ) : (
+            <span className="px-4 py-2 text-sm text-zinc-500">Son səhifə</span>
+          )}
+        </nav>
       )}
       <p className="text-xs text-zinc-600">
         Bu ekran yalnız oxumaq üçündür; status dəyişikliklərini əsas admin panelində edin.
