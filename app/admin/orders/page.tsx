@@ -817,7 +817,10 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                   <form action={confirmCashPayment} className="mt-4">
                     <input type="hidden" name="orderId" value={order.id} />
                     <input type="hidden" name="returnTo" value={pageLink(page)} />
-                    <OrderSubmitButton variant="success">
+                    <OrderSubmitButton
+                      variant="success"
+                      confirmMessage={`Sifariş #${order.id.slice(-8)} üçün ${order.total.toFixed(2)} ₼ nağd pulu həqiqətən aldınız? Bu əməliyyatı yalnız pul qəbul edildikdən sonra təsdiqləyin.`}
+                    >
                       ✓ Nağd ödəniş alındı — təsdiqlə
                     </OrderSubmitButton>
                     <p className="mt-2 text-xs text-gray-600">
@@ -848,6 +851,9 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                       />
                       <OrderSubmitButton
                         variant={nextStatus === "CANCELLED" ? "danger" : "success"}
+                        confirmMessage={nextStatus === "CANCELLED"
+                          ? `Sifariş #${order.id.slice(-8)} ləğv edilsin? Bu statusu geri qaytarmaq mümkün deyil.`
+                          : undefined}
                       >
                         {STATUS_BUTTON_LABELS[nextStatus]}
                       </OrderSubmitButton>
