@@ -60,6 +60,9 @@ export default function OrdersAutoRefresh() {
             hasBaseline.current = false;
             latestRef.current = null;
             scopeRef.current = null;
+            alertsEnabledRef.current = false;
+            setAlertsEnabled(false);
+            setPermissionInfo("Sessiya bitdi. Bildirişləri yenidən aktiv edin.");
             setError("Sessiya bitib. Admin panelinə yenidən daxil olun.");
             router.refresh();
           }
