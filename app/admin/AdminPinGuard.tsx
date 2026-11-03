@@ -105,6 +105,8 @@ export default function AdminPinGuard({
       setUnlocked(false);
       setPin("");
       setError("");
+      // Sessiya silindikdən sonra səhifəni tam yenilə və keçmiş admin UI-ni bağla.
+      window.location.replace("/admin");
     } catch {
       setError("Çıxış zamanı xəta baş verdi.");
     } finally {

@@ -4,22 +4,53 @@ import { getAdminSession } from "@/app/lib/admin-auth";
 import { getDailyReport, parseReportRange } from "@/app/lib/superadmin-report";
 import { buildDailyReportXlsx } from "@/app/lib/excel-report";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
+  // Əvvəlki birbaşa GET yükləməsi təhlükəsizlik məqsədilə deaktivdir.
+  return new Response("Excel ixracı yalnız admin panelindəki düymə ilə mümkündür.", {
+    status: 405,
+    headers: {
+      "Allow": "POST",
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+export async function POST(request: NextRequest) {
   // Serverdə yoxlanmış restoran sessiyası olmadan Excel ixracına icazə verilmir.
   const session = await getAdminSession();
   if (!session) {
     return new Response("Giriş tələb olunur.", {
       status: 401,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
     });
   }
 
-  const query = request.nextUrl.searchParams;
-  const range = parseReportRange(query.get("from"), query.get("to"));
+  // Sadə link və kənar saytdan sorğular yox, yalnız eyni saytdakı form.
+  const requestOrigin = request.headers.get("origin");
+  if (!requestOrigin || requestOrigin !== request.nextUrl.origin) {
+    return new Response("Bu mənbədən ixraca icazə verilmir.", {
+      status: 403,
+      headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
+    });
+  }
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/x-www-form-urlencoded")) {
+    return new Response("Forma formatı yanlışdır.", {
+      status: 415,
+      headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
+    });
+  }
+
+  const form = await request.formData();
+  const from = form.get("from");
+  const to = form.get("to");
+  const range = parseReportRange(typeof from === "string" ? from : null, typeof to === "string" ? to : null);
   if (!range) {
     return new Response("Tarix aralığı yanlışdır (maksimum 90 gün).", {
       status: 400,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
     });
   }
 
@@ -31,7 +62,7 @@ export async function GET(request: NextRequest) {
   if (!restaurant) {
     return new Response("Restoran tapılmadı.", {
       status: 404,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
     });
   }
 
@@ -45,7 +76,7 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": 'attachment; filename="' + filename + '"',
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
       "X-Content-Type-Options": "nosniff",
     },
   });

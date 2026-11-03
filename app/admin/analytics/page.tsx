@@ -52,10 +52,7 @@ async function RestaurantAnalyticsContent({ searchParams }: Props) {
   const range = parseReportRange(fromValue, toValue);
 
   const basePath = "/admin/analytics";
-  const exportPath = range
-    ? basePath + "/export?from=" + encodeURIComponent(range.from) +
-      "&to=" + encodeURIComponent(range.to)
-    : null;
+  const exportPath = range ? basePath + "/export" : null;
 
   const report = range ? await getDailyReport(restaurant.id, range) : null;
   const inputClass = "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900";
@@ -121,10 +118,14 @@ async function RestaurantAnalyticsContent({ searchParams }: Props) {
               <p className="text-sm text-zinc-700">
                 Dövr: <strong>{range.from} — {range.to}</strong>
               </p>
-              <a href={exportPath ?? undefined}
-                className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
-                Excel faylını (.xlsx) yüklə
-              </a>
+              <form method="post" action={exportPath ?? undefined}>
+                <input type="hidden" name="from" value={range.from} />
+                <input type="hidden" name="to" value={range.to} />
+                <button type="submit"
+                  className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
+                  Excel faylını (.xlsx) yüklə
+                </button>
+              </form>
             </div>
           )}
         </section>
