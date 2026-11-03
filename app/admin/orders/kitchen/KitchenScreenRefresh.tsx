@@ -40,6 +40,9 @@ export default function KitchenScreenRefresh() {
     };
     const onOffline = () => setOnline(false);
 
+    // A screen opened while already offline will not receive a new offline event.
+    if (!navigator.onLine) setOnline(false);
+
     const timer = window.setInterval(onVisible, INTERVAL_MS);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
