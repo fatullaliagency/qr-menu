@@ -509,6 +509,13 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <OrdersAutoRefresh />
 
+        <Link
+          href="/admin/orders/kitchen"
+          className="inline-flex w-fit rounded-xl bg-indigo-800 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
+          🍳 Mətbəx ekranını aç
+        </Link>
+
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Restoranın sifariş statistikası</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
