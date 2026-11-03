@@ -15,6 +15,7 @@ const kitchen = source("app/admin/orders/kitchen/page.tsx");
 const print = source("app/admin/orders/[id]/print/page.tsx");
 const notifications = source("app/admin/orders/notifications/route.ts");
 const admin = source("app/admin/orders/page.tsx");
+const writes = source("app/lib/order-write-service.ts");
 const customerOrders = source("app/[slug]/order-actions.ts");
 const tracking = source("app/order/track/[id]/status/route.ts");
 const historyFlag = source("app/lib/order-status-history.ts");
@@ -70,24 +71,29 @@ test("Order notification endpoint requires session and returns only a tiny no-st
   }
 });
 
-test("All status changes condition on both tenant and previous status", () => {
+test("All status changes retain session authorization and conditional tenant writes", () => {
   const action = part(admin, "async function updateOrderStatus(", "// Nağd pul");
   assert.match(action, /const session = await getAdminSession\(\)/);
   assert.match(action, /!canTransitionOrder\(currentStatus, nextStatus\)/);
-  assert.equal((action.match(/restaurantId: session\.restaurantId/g) ?? []).length, 3);
-  assert.equal((action.match(/status: currentStatus/g) ?? []).length, 2);
+  assert.match(action, /writeOrderStatus\(db, \{[\s\S]*?restaurantId: session\.restaurantId/);
+  assert.match(action, /historyEnabled: orderHistoryEnabled\(\)/);
   assert.match(action, /if \(!changed\)/);
-  assert.match(action, /if \(result\.count !== 1\) return false/);
-  assert.match(action, /tx\.orderStatusEvent\.create\(/);
+  assert.match(writes, /restaurantId: input\.restaurantId,\s*status: input\.currentStatus/);
+  assert.match(writes, /order\.updateMany\(\{ where, data \}\)/);
+  assert.match(writes, /if \(result\.count !== 1\) return false/);
+  assert.match(writes, /tx\.orderStatusEvent\.create\(/);
 });
 
 test("Cash receipt update is single-tenant, conditional, and never automatic", () => {
   const action = part(admin, "async function confirmCashPayment(", "export default function OrdersPage");
   assert.match(action, /const session = await getAdminSession\(\)/);
-  assert.match(action, /db\.order\.updateMany\(/);
-  assert.match(action, /id: orderId,\s*restaurantId: session\.restaurantId,\s*\.\.\.CASH_PENDING_CONDITIONS/);
-  assert.match(action, /data: \{ paymentStatus: "PAID" \}/);
-  assert.match(action, /if \(result\.count !== 1\)/);
+  assert.match(action, /writeCashReceipt\(db, \{\s*id: orderId,\s*restaurantId: session\.restaurantId/);
+  assert.match(action, /if \(!changed\)/);
+  assert.match(writes, /database\.order\.updateMany\(\{\s*where: \{\s*id: input\.id,\s*restaurantId: input\.restaurantId/);
+  assert.match(writes, /status: "DELIVERED"/);
+  assert.match(writes, /paymentMethod: "CASH"/);
+  assert.match(writes, /paymentStatus: "PENDING"/);
+  assert.match(writes, /data: \{ paymentStatus: "PAID" \}/);
 });
 
 test("Customer order server checks restaurant ownership and server-calculated price", () => {

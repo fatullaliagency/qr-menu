@@ -11,6 +11,7 @@ import OrdersAutoRefresh from "./OrdersAutoRefresh";
 import OrderSubmitButton from "./OrderSubmitButton";
 import CopyKitchenOrderButton from "./CopyKitchenOrderButton";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
+import { writeOrderStatus, writeCashReceipt } from "@/app/lib/order-write-service";
 import {
   NEXT_STATUSES,
   isOrderStatus,
@@ -129,36 +130,13 @@ async function updateOrderStatus(formData: FormData) {
   // Tarixçə açıqdırsa status dəyişikliyi və audit yazısı eyni tranzaksiyadadır.
   // Tarixçə cədvəli yoxdursa tranzaksiya geri qaytarılır, yarımçıq status
   // yenilənməsi baş vermir. Migration tamamlanmayıbsa köhnə etibarlı axın qalır.
-  const changed = orderHistoryEnabled()
-    ? await db.$transaction(async (tx) => {
-        const result = await tx.order.updateMany({
-          where: {
-            id: orderId,
-            restaurantId: session.restaurantId,
-            status: currentStatus,
-          },
-          data: { status: nextStatus },
-        });
-        if (result.count !== 1) return false;
-        await tx.orderStatusEvent.create({
-          data: {
-            orderId,
-            restaurantId: session.restaurantId,
-            fromStatus: currentStatus,
-            toStatus: nextStatus,
-            actor: "RESTAURANT",
-          },
-        });
-        return true;
-      })
-    : (await db.order.updateMany({
-        where: {
-          id: orderId,
-          restaurantId: session.restaurantId,
-          status: currentStatus,
-        },
-        data: { status: nextStatus },
-      })).count === 1;
+  const changed = await writeOrderStatus(db, {
+    id: orderId,
+    restaurantId: session.restaurantId,
+    currentStatus,
+    nextStatus,
+    historyEnabled: orderHistoryEnabled(),
+  });
 
   if (!changed) {
     redirect(actionNoticeUrl(formData, "stale"));
@@ -181,16 +159,12 @@ async function confirmCashPayment(formData: FormData) {
     redirect(actionNoticeUrl(formData, "invalid"));
   }
 
-  const result = await db.order.updateMany({
-    where: {
-      id: orderId,
-      restaurantId: session.restaurantId,
-      ...CASH_PENDING_CONDITIONS,
-    },
-    data: { paymentStatus: "PAID" },
+  const changed = await writeCashReceipt(db, {
+    id: orderId,
+    restaurantId: session.restaurantId,
   });
 
-  if (result.count !== 1) {
+  if (!changed) {
     redirect(actionNoticeUrl(formData, "stale"));
   }
 
