@@ -6,6 +6,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 const COOKIE_NAME = "qr_admin_session";
 const SESSION_DURATION = 60 * 60 * 8;
@@ -85,6 +86,8 @@ export async function createAdminSession(
 
 export async function getAdminSession():
   Promise<AdminSession | null> {
+  // Next.js cacheComponents: sessiya müddəti və Date.now() yalnız sorğu vaxtı oxunur.
+  await connection();
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 const COOKIE = "qr_superadmin_session";
 const DURATION_SECONDS = 60 * 60 * 2;
@@ -29,6 +30,8 @@ function signature(payload: string): Buffer {
 }
 
 export async function hasSuperAdminSession(): Promise<boolean> {
+  // İmzalı sessiyanın bitmə vaxtı sorğu zamanı yoxlanmalıdır.
+  await connection();
   if (!isSuperAdminEnabled()) return false;
   const cookie = (await cookies()).get(COOKIE)?.value;
   if (!cookie) return false;
