@@ -11,6 +11,13 @@ import OrdersAutoRefresh from "./OrdersAutoRefresh";
 import OrderSubmitButton from "./OrderSubmitButton";
 import CopyKitchenOrderButton from "./CopyKitchenOrderButton";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
+import {
+  NEXT_STATUSES,
+  isOrderStatus,
+  canTransitionOrder,
+  CASH_PENDING_CONDITIONS,
+  canConfirmCashPayment,
+} from "@/app/lib/order-policy";
 
 type OrdersPageProps = {
   searchParams: Promise<{
@@ -50,15 +57,6 @@ const PAYMENT_LABELS: Record<PaymentStatus, string> = {
   REFUNDED: "Geri qaytarılıb",
 };
 
-const NEXT_STATUSES: Record<OrderStatus, readonly OrderStatus[]> = {
-  NEW: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["PREPARING", "CANCELLED"],
-  PREPARING: ["ON_THE_WAY", "CANCELLED"],
-  ON_THE_WAY: ["DELIVERED", "CANCELLED"],
-  DELIVERED: [],
-  CANCELLED: [],
-};
-
 const STATUS_BUTTON_LABELS: Record<OrderStatus, string> = {
   NEW: "Yeni",
   CONFIRMED: "✓ Sifarişi təsdiqlə",
@@ -73,15 +71,6 @@ function safeTelHref(phone: string): string | null {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 7 || digits.length > 15) return null;
   return "tel:" + (phone.trim().startsWith("+") ? "+" : "") + digits;
-}
-
-function isOrderStatus(
-  value: FormDataEntryValue | null
-): value is OrderStatus {
-  return (
-    typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(NEXT_STATUSES, value)
-  );
 }
 
 type NoticeCode =
@@ -175,7 +164,7 @@ async function updateOrderStatus(formData: FormData) {
     orderId.length > 150 ||
     !isOrderStatus(currentStatus) ||
     !isOrderStatus(nextStatus) ||
-    !NEXT_STATUSES[currentStatus].includes(nextStatus)
+    !canTransitionOrder(currentStatus, nextStatus)
   ) {
     redirect(actionNoticeUrl(formData, "invalid"));
   }
@@ -239,9 +228,7 @@ async function confirmCashPayment(formData: FormData) {
     where: {
       id: orderId,
       restaurantId: session.restaurantId,
-      status: "DELIVERED",
-      paymentMethod: "CASH",
-      paymentStatus: "PENDING",
+      ...CASH_PENDING_CONDITIONS,
     },
     data: { paymentStatus: "PAID" },
   });
@@ -396,9 +383,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     db.order.aggregate({
       where: {
         restaurantId: session.restaurantId,
-        status: "DELIVERED",
-        paymentMethod: "CASH",
-        paymentStatus: "PENDING",
+        ...CASH_PENDING_CONDITIONS,
       },
       _sum: { total: true },
       _count: { _all: true },
@@ -849,9 +834,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 {PAYMENT_LABELS[order.paymentStatus]}
               </p>
 
-              {order.paymentMethod === "CASH" &&
-                order.status === "DELIVERED" &&
-                order.paymentStatus === "PENDING" && (
+              {canConfirmCashPayment(order) && (
                   <form action={confirmCashPayment} className="mt-4">
                     <input type="hidden" name="orderId" value={order.id} />
                     <input type="hidden" name="returnTo" value={pageLink(page)} />

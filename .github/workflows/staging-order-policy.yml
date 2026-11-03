@@ -1,0 +1,24 @@
+name: Staging order policy tests
+
+on:
+  push:
+    branches:
+      - feature/orders-v1
+  pull_request:
+    branches:
+      - feature/orders-v1
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run test:orders
