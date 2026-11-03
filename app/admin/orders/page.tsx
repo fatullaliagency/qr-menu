@@ -342,7 +342,8 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     typeof query.page === "string" && /^[1-9][0-9]{0,3}$/.test(query.page)
       ? Number(query.page)
       : 1;
-  const overdueCutoff = overdueOnly ? new Date(Date.now() - 10 * 60 * 1000) : null;
+  const warningCutoff = new Date(Date.now() - 10 * 60 * 1000);
+  const overdueCutoff = overdueOnly ? warningCutoff : null;
   const filteredWhere: Prisma.OrderWhereInput = {
     restaurantId: session.restaurantId,
     ...(selectedStatus ? { status: selectedStatus } : {}),
@@ -703,7 +704,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
         {orders.map((order) => (
           <article
             key={order.id}
-            className="space-y-3 rounded-xl bg-white p-5 shadow-sm"
+            className={
+              order.status === "NEW" && order.createdAt.getTime() < warningCutoff.getTime()
+                ? "space-y-3 rounded-xl border-2 border-rose-400 bg-rose-50 p-5 shadow-sm"
+                : "space-y-3 rounded-xl bg-white p-5 shadow-sm"
+            }
           >
             <div className="flex flex-wrap justify-between gap-2">
               <h2 className="font-bold">
@@ -715,6 +720,15 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 })}
               </span>
             </div>
+
+            {order.status === "NEW" && order.createdAt.getTime() < warningCutoff.getTime() && (
+              <p
+                className="rounded-lg border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-900"
+                role="status"
+              >
+                ⚠️ Təcili: Yeni sifariş 10 dəqiqədən çoxdur təsdiq gözləyir.
+              </p>
+            )}
 
             <p>
               <strong>Müştəri:</strong> {order.customerName}
