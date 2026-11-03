@@ -287,6 +287,12 @@ async function AdminContent({ searchParams }: PageProps) {
                 📦 Sifarişlər
               </Link>
               <Link
+                href="/admin/analytics"
+                className="rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800"
+              >
+                📊 Hesabatlar
+              </Link>
+              <Link
                 href="/admin/payment-settings"
                 className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
               >
