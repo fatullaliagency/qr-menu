@@ -88,6 +88,16 @@ test("Order alert watermark is reset across restaurant sessions without replayin
   assert.match(notificationClient, /scopeRef\.current = data\.scope;/);
 });
 
+test("Expired admin session clears the alert setting and old restaurant baseline", () => {
+  const unauthorized = part(notificationClient, "if (response.status === 401)", "if (!response.ok)");
+  assert.match(unauthorized, /scopeRef\.current = null/);
+  assert.match(unauthorized, /latestRef\.current = null/);
+  assert.match(unauthorized, /hasBaseline\.current = false/);
+  assert.match(unauthorized, /alertsEnabledRef\.current = false/);
+  assert.match(unauthorized, /setAlertsEnabled\(false\)/);
+  assert.match(unauthorized, /router\.refresh\(\)/);
+});
+
 test("All status changes retain session authorization and conditional tenant writes", () => {
   const action = part(admin, "async function updateOrderStatus(", "// Nağd pul");
   assert.match(action, /const session = await getAdminSession\(\)/);
