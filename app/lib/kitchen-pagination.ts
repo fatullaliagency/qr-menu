@@ -17,3 +17,20 @@ export function getKitchenPage(raw: unknown, total: number) {
     take: KITCHEN_PAGE_SIZE,
   };
 }
+
+export const KITCHEN_STATUSES = ["NEW", "CONFIRMED", "PREPARING"] as const;
+export type KitchenStatus = (typeof KITCHEN_STATUSES)[number];
+
+export function parseKitchenStatus(raw: unknown): KitchenStatus | null {
+  if (typeof raw !== "string") return null;
+  return KITCHEN_STATUSES.some((status) => status === raw)
+    ? raw as KitchenStatus
+    : null;
+}
+
+export function kitchenPageUrl(status: KitchenStatus | null, page: number): string {
+  const params = new URLSearchParams();
+  if (status && parseKitchenStatus(status)) params.set("status", status);
+  if (Number.isSafeInteger(page) && page > 0) params.set("page", String(page));
+  return "/admin/orders/kitchen" + (params.size ? "?" + params.toString() : "");
+}

@@ -1,12 +1,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import KitchenScreenRefresh from "./KitchenScreenRefresh";
-import { getKitchenPage } from "@/app/lib/kitchen-pagination";
+import {
+  getKitchenPage,
+  parseKitchenStatus,
+  KITCHEN_STATUSES,
+  kitchenPageUrl,
+} from "@/app/lib/kitchen-pagination";
 
-const ACTIVE_STATUSES: OrderStatus[] = ["NEW", "CONFIRMED", "PREPARING"];
+const ACTIVE_STATUSES: OrderStatus[] = [...KITCHEN_STATUSES];
 const STATUS_LABELS: Record<string, string> = {
   NEW: "Yeni sifariş",
   CONFIRMED: "Təsdiqləndi",
@@ -14,7 +19,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 type KitchenScreenProps = {
-  searchParams: Promise<{ page?: string | string[] }>;
+  searchParams: Promise<{ page?: string | string[]; status?: string | string[] }>;
 };
 
 export default function KitchenScreenPage(props: KitchenScreenProps) {
@@ -36,22 +41,31 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
     );
   }
 
-  // Şəxsi müştəri məlumatları SELECT edilmir; sorğu yalnız sessiyada olan
-  // restoranın mətbəxdə gözləyən sifarişlərini oxuyur.
-  const where = {
+  // URL statusu yalnız məlum mətbəx statuslarından qəbul edilir.
+  // Restoran ID-si həmişə serverdə təsdiqlənmiş sessiyadan götürülür.
+  const query = await searchParams;
+  const selectedStatus = parseKitchenStatus(query.status);
+  const where: Prisma.OrderWhereInput = {
     restaurantId: session.restaurantId,
-    status: { in: ACTIVE_STATUSES },
+    status: selectedStatus ?? { in: ACTIVE_STATUSES },
   };
-  const [restaurant, total] = await Promise.all([
+  const [restaurant, statusGroups] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: session.restaurantId },
       select: { name: true },
     }),
-    db.order.count({ where }),
+    db.order.groupBy({
+      by: ["status"],
+      where: { restaurantId: session.restaurantId, status: { in: ACTIVE_STATUSES } },
+      _count: { _all: true },
+    }),
   ]);
-
-  const query = await searchParams;
-  const { page, pageCount, skip, take } = getKitchenPage(query.page, total);
+  const counts = Object.fromEntries(
+    statusGroups.map((group) => [group.status, group._count._all])
+  ) as Partial<Record<OrderStatus, number>>;
+  const total = ACTIVE_STATUSES.reduce((sum, status) => sum + (counts[status] ?? 0), 0);
+  const filteredCount = selectedStatus ? counts[selectedStatus] ?? 0 : total;
+  const { page, pageCount, skip, take } = getKitchenPage(query.page, filteredCount);
   const orders = await db.order.findMany({
     where,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -80,7 +94,7 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
           <p className="text-sm font-semibold text-indigo-700">QR Menü · Mətbəx ekranı</p>
           <h1 className="text-2xl font-bold">{restaurant.name}</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Hazırlanmalı sifarişlər: {total} · Ən köhnə sifarişlər əvvəl
+            Hazırlanmalı sifarişlər: {total} · Seçim üzrə: {filteredCount} · Ən köhnələr əvvəl
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -92,15 +106,36 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
         </div>
       </header>
 
-      {total > 30 && (
+      <nav aria-label="Mətbəx status filtrləri"
+        className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-4">
+        <Link href="/admin/orders/kitchen" aria-current={selectedStatus === null ? "page" : undefined}
+          className={selectedStatus === null
+            ? "rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white"
+            : "rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-900"}>
+          Hamısı ({total})
+        </Link>
+        {KITCHEN_STATUSES.map((status) => (
+          <Link key={status} href={kitchenPageUrl(status, 1)}
+            aria-current={selectedStatus === status ? "page" : undefined}
+            className={selectedStatus === status
+              ? "rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white"
+              : "rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-900"}>
+            {STATUS_LABELS[status]} ({counts[status] ?? 0})
+          </Link>
+        ))}
+      </nav>
+
+      {filteredCount > 30 && (
         <p role="status" className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-950">
-          {skip + 1}–{skip + orders.length} / {total} sifariş · Səhifə {page} / {pageCount}.
+          {skip + 1}–{skip + orders.length} / {filteredCount} sifariş · Səhifə {page} / {pageCount}.
           Əvvəlki və növbəti səhifə keçidlərindən istifadə edin.
         </p>
       )}
       {orders.length === 0 ? (
         <section className="rounded-xl bg-white p-8 text-center font-semibold">
-          Hazırda mətbəxdə gözləyən sifariş yoxdur.
+          {selectedStatus
+            ? "Bu statusda mətbəx sifarişi yoxdur."
+            : "Hazırda mətbəxdə gözləyən sifariş yoxdur."}
         </section>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -155,11 +190,11 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
           })}
         </div>
       )}
-      {total > 30 && (
+      {filteredCount > 30 && (
         <nav aria-label="Mətbəx sifarişlərinin səhifələri"
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
           {page > 1 ? (
-            <Link href={`/admin/orders/kitchen?page=${page - 1}`}
+            <Link href={kitchenPageUrl(selectedStatus, page - 1)}
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold">
               ← Əvvəlki səhifə
             </Link>
@@ -168,7 +203,7 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
           )}
           <span className="text-sm font-semibold">Səhifə {page} / {pageCount}</span>
           {page < pageCount ? (
-            <Link href={`/admin/orders/kitchen?page=${page + 1}`}
+            <Link href={kitchenPageUrl(selectedStatus, page + 1)}
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold">
               Növbəti səhifə →
             </Link>
