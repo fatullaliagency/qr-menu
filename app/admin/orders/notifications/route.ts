@@ -18,9 +18,17 @@ export async function GET() {
     );
   }
 
-  const [newCount, newestOrder] = await Promise.all([
+  const overdueCutoff = new Date(Date.now() - 10 * 60 * 1000);
+  const [newCount, overdueCount, newestOrder] = await Promise.all([
     db.order.count({
       where: { restaurantId: session.restaurantId, status: "NEW" },
+    }),
+    db.order.count({
+      where: {
+        restaurantId: session.restaurantId,
+        status: "NEW",
+        createdAt: { lt: overdueCutoff },
+      },
     }),
     db.order.findFirst({
       where: { restaurantId: session.restaurantId },
@@ -33,6 +41,7 @@ export async function GET() {
   return NextResponse.json(
     {
       newCount,
+      overdueCount,
       latestOrder: newestOrder
         ? { id: newestOrder.id, createdAt: newestOrder.createdAt.toISOString() }
         : null,

@@ -9,6 +9,7 @@ const REFRESH_MS = 10_000;
 type LatestOrder = { id: string; createdAt: string };
 type NotificationSnapshot = {
   newCount: number;
+  overdueCount: number;
   latestOrder: LatestOrder | null;
 };
 
@@ -26,6 +27,7 @@ function newerThan(current: LatestOrder, previous: LatestOrder | null): boolean 
 export default function OrdersAutoRefresh() {
   const router = useRouter();
   const [newCount, setNewCount] = useState<number | null>(null);
+  const [overdueCount, setOverdueCount] = useState<number | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [lastAlert, setLastAlert] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -54,6 +56,7 @@ export default function OrdersAutoRefresh() {
         if (response.status === 401) {
           if (!cancelled) {
             setNewCount(null);
+            setOverdueCount(null);
             setError("Sessiya bitib. Admin panelinə yenidən daxil olun.");
             router.refresh();
           }
@@ -64,6 +67,9 @@ export default function OrdersAutoRefresh() {
         if (
           !Number.isSafeInteger(data.newCount) ||
           data.newCount < 0 ||
+          !Number.isSafeInteger(data.overdueCount) ||
+          data.overdueCount < 0 ||
+          data.overdueCount > data.newCount ||
           (data.latestOrder !== null &&
             (!data.latestOrder ||
               typeof data.latestOrder.id !== "string" ||
@@ -84,6 +90,7 @@ export default function OrdersAutoRefresh() {
         hasBaseline.current = true;
 
         setNewCount(data.newCount);
+        setOverdueCount(data.overdueCount);
         setError("");
 
         if (isNewOrder) {
@@ -201,6 +208,9 @@ export default function OrdersAutoRefresh() {
             Yeni sifarişlər: {newCount === null ? "Yoxlanılır..." : newCount}
           </h2>
           <p className="mt-1 text-sm">
+            10 dəqiqədən çox təsdiqsiz: <strong>{overdueCount === null ? "Yoxlanılır..." : overdueCount}</strong>
+          </p>
+          <p className="mt-1 text-sm">
             Panel hər 10 saniyədə yoxlanılır. Səs və brauzer bildirişi istəyə bağlıdır.
           </p>
           {lastAlert && (
@@ -212,6 +222,12 @@ export default function OrdersAutoRefresh() {
           {permissionInfo && <p className="mt-2 text-xs">{permissionInfo}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/orders?urgent=1"
+            className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Gecikən sifarişlər
+          </Link>
           <Link
             href="/admin/orders?status=NEW"
             className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white"

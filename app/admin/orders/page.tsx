@@ -2,7 +2,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
+import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
@@ -14,6 +14,7 @@ type OrdersPageProps = {
     payment?: string | string[];
     page?: string | string[];
     q?: string | string[];
+    urgent?: string | string[];
   }>;
 };
 
@@ -175,11 +176,15 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   // Status yalnız əvvəlcədən icazə verilmiş OrderStatus dəyərlərindən biridir.
   // Restoran ID-si isə heç vaxt URL-dən deyil, yalnız admin sessiyasından gəlir.
   const query = await searchParams;
+  const overdueOnly = query.urgent === "1";
   const requestedStatus =
     typeof query.status === "string" ? query.status : null;
-  const selectedStatus: OrderStatus | null = isOrderStatus(requestedStatus)
-    ? requestedStatus
-    : null;
+  // Gecikən sifarişlər həmişə NEW olmalıdır, URL-dəki başqa status nəzərə alınmır.
+  const selectedStatus: OrderStatus | null = overdueOnly
+    ? "NEW"
+    : isOrderStatus(requestedStatus)
+      ? requestedStatus
+      : null;
   const selectedMethod: PaymentMethod | null =
     typeof query.method === "string" &&
     Object.prototype.hasOwnProperty.call(METHOD_LABELS, query.method)
@@ -205,12 +210,14 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     typeof query.page === "string" && /^[1-9][0-9]{0,3}$/.test(query.page)
       ? Number(query.page)
       : 1;
-  const filteredWhere = {
+  const overdueCutoff = overdueOnly ? new Date(Date.now() - 10 * 60 * 1000) : null;
+  const filteredWhere: Prisma.OrderWhereInput = {
     restaurantId: session.restaurantId,
     ...(selectedStatus ? { status: selectedStatus } : {}),
     ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
     ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
     ...(orderSearch ? { id: { endsWith: orderSearch } } : {}),
+    ...(overdueCutoff ? { createdAt: { lt: overdueCutoff } } : {}),
   };
 
   // Səhifələmə filtrdən sonrakı real say üzrə edilir. Ümumi statistika
@@ -233,9 +240,12 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   ]);
   const pageCount = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
+  const orderBy: Prisma.OrderOrderByWithRelationInput[] = overdueOnly
+    ? [{ createdAt: "asc" }, { id: "asc" }]
+    : [{ createdAt: "desc" }, { id: "desc" }];
   const orders = await db.order.findMany({
     where: filteredWhere,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy,
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     include: { items: true },
@@ -248,6 +258,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     if (selectedMethod) params.set("method", selectedMethod);
     if (selectedPayment) params.set("payment", selectedPayment);
     if (orderSearch) params.set("q", orderSearch);
+    if (overdueOnly) params.set("urgent", "1");
     params.set("page", String(nextPage));
     return "/admin/orders?" + params.toString();
   };
@@ -322,7 +333,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
-          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}`}
+          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}`}
             method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş nömrəsi
@@ -375,6 +386,11 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 ))}
               </select>
             </label>
+            <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-950">
+              <input type="checkbox" name="urgent" value="1" defaultChecked={overdueOnly}
+                className="h-4 w-4 accent-amber-700" />
+              10 dəqiqədən çox təsdiqsiz
+            </label>
             <button type="submit"
               className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white">
               Filtrlə
@@ -390,13 +406,14 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             {" · "}{selectedMethod ? METHOD_LABELS[selectedMethod] : "Bütün üsullar"}
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {orderSearch ? " · Nömrə: " + orderSearch : ""}
+            {overdueOnly ? " · Əvvəlcə ən köhnə gecikən sifarişlər" : ""}
             {" · "}Səhifə {page} / {pageCount}
           </p>
         </section>
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            {selectedStatus || selectedMethod || selectedPayment || orderSearch
+            {selectedStatus || selectedMethod || selectedPayment || orderSearch || overdueOnly
               ? "Axtarış və filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
