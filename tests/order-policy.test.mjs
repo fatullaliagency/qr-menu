@@ -7,6 +7,7 @@ import {
   canTransitionOrder,
   CASH_PENDING_CONDITIONS,
   canConfirmCashPayment,
+  buildOrderNoticeUrl,
 } from "../app/lib/order-policy.ts";
 
 const STATES = [
@@ -85,4 +86,87 @@ test("Cash receipt is rejected for unpaid/paid statuses and other payment method
       }
     }
   }
+});
+
+const validRange = (from, to) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(from) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(to) &&
+  from <= to;
+
+test("Action return URL preserves only validated order filters", () => {
+  const url = buildOrderNoticeUrl(
+    "/admin/orders?status=NEW&method=CASH&payment=PENDING&q=abc12345&urgent=1&page=2&from=2026-11-01&to=2026-11-03&notice=invalid&evil=yes",
+    "confirmed",
+    validRange
+  );
+  const parsed = new URL(url, "https://example.test");
+  assert.equal(parsed.pathname, "/admin/orders");
+  assert.deepEqual(Object.fromEntries(parsed.searchParams), {
+    status: "NEW",
+    method: "CASH",
+    payment: "PENDING",
+    q: "abc12345",
+    urgent: "1",
+    from: "2026-11-01",
+    to: "2026-11-03",
+    page: "2",
+    notice: "confirmed",
+  });
+});
+
+test("External, protocol-relative and JavaScript URLs are never followed", () => {
+  for (const unsafe of [
+    "https://evil.test/admin/orders?status=NEW",
+    "//evil.test/admin/orders?status=NEW",
+    "javascript:alert(1)",
+    "/admin/orders/../../outside",
+    "/superadmin?status=NEW",
+    "/admin/orders/print?status=NEW",
+    "https://qr-menu-actions.invalid.evil.test/admin/orders?status=NEW",
+    "a".repeat(1025),
+    null,
+    {},
+  ]) {
+    assert.equal(buildOrderNoticeUrl(unsafe, "invalid", validRange), "/admin/orders?notice=invalid");
+  }
+});
+
+test("Invalid status, method, payment, search, date and page are removed", () => {
+  const url = buildOrderNoticeUrl(
+    "/admin/orders?status=__proto__&method=FREE&payment=INVALID&q=%3Cscript%3E&page=000&from=2026-11-03&to=2026-11-01",
+    "stale",
+    validRange
+  );
+  assert.equal(url, "/admin/orders?notice=stale");
+});
+
+test("Urgent queue always forces NEW status", () => {
+  const parsed = new URL(buildOrderNoticeUrl(
+    "/admin/orders?urgent=1&status=DELIVERED", "confirmed", validRange
+  ), "https://example.test");
+  assert.equal(parsed.searchParams.get("status"), "NEW");
+  assert.equal(parsed.searchParams.get("urgent"), "1");
+});
+
+test("Cash due queue overrides incompatible parameters and remains after actions", () => {
+  const parsed = new URL(buildOrderNoticeUrl(
+    "/admin/orders?cashDue=1&urgent=1&status=NEW&method=ONLINE_CARD&payment=PAID&page=3",
+    "cash-paid", validRange
+  ), "https://example.test");
+  assert.equal(parsed.searchParams.get("cashDue"), "1");
+  assert.equal(parsed.searchParams.get("urgent"), null);
+  assert.equal(parsed.searchParams.get("status"), "DELIVERED");
+  assert.equal(parsed.searchParams.get("method"), "CASH");
+  assert.equal(parsed.searchParams.get("payment"), "PENDING");
+  assert.equal(parsed.searchParams.get("page"), "3");
+  assert.equal(parsed.searchParams.get("notice"), "cash-paid");
+});
+
+test("Unrecognized date range does not survive redirect validation", () => {
+  const url = buildOrderNoticeUrl(
+    "/admin/orders?from=2026-02-31&to=2026-03-01&status=NEW",
+    "invalid",
+    () => false
+  );
+  assert.equal(url, "/admin/orders?status=NEW&notice=invalid");
 });

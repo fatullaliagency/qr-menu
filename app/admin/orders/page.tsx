@@ -17,7 +17,9 @@ import {
   canTransitionOrder,
   CASH_PENDING_CONDITIONS,
   canConfirmCashPayment,
+  buildOrderNoticeUrl,
 } from "@/app/lib/order-policy";
+import type { NoticeCode } from "@/app/lib/order-policy";
 
 type OrdersPageProps = {
   searchParams: Promise<{
@@ -73,10 +75,6 @@ function safeTelHref(phone: string): string | null {
   return "tel:" + (phone.trim().startsWith("+") ? "+" : "") + digits;
 }
 
-type NoticeCode =
-  | "confirmed" | "preparing" | "on-the-way" | "delivered" | "cancelled"
-  | "cash-paid" | "stale" | "invalid";
-
 const NOTICE_LABELS: Record<NoticeCode, string> = {
   confirmed: "Sifariş təsdiqləndi.",
   preparing: "Sifarişin hazırlanmasına başlandı.",
@@ -100,52 +98,11 @@ const STATUS_NOTICE: Record<OrderStatus, NoticeCode> = {
 // Yönləndirməni yalnız /admin/orders ilə məhdudlaşdırırıq. Gizli input
 // etibarlı sayılmır; URL parametrləri serverdə yenidən validasiya olunur.
 function actionNoticeUrl(formData: FormData, notice: NoticeCode): string {
-  const raw = formData.get("returnTo");
-  const params = new URLSearchParams();
-  if (typeof raw === "string" && raw.length <= 1024) {
-    try {
-      const parsed = new URL(raw, "https://qr-menu-actions.invalid");
-      if (parsed.origin === "https://qr-menu-actions.invalid" &&
-          parsed.pathname === "/admin/orders") {
-        const source = parsed.searchParams;
-        const status = source.get("status");
-        const method = source.get("method");
-        const payment = source.get("payment");
-        const q = source.get("q");
-        const page = source.get("page");
-        const from = source.get("from");
-        const to = source.get("to");
-        if (isOrderStatus(status)) params.set("status", status);
-        if (method && Object.prototype.hasOwnProperty.call(METHOD_LABELS, method))
-          params.set("method", method);
-        if (payment && Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, payment))
-          params.set("payment", payment);
-        if (q && /^[a-z0-9]{4,30}$/.test(q)) params.set("q", q);
-        if (source.get("urgent") === "1") {
-          params.set("urgent", "1");
-          params.set("status", "NEW");
-        }
-        // Nağd ödənişin təsdiqindən sonra istifadəçi eyni xüsusi filtrdə
-        // qalmalıdır. Ziddiyyətli sorğu parametrlərini normallaşdırırıq.
-        if (source.get("cashDue") === "1") {
-          params.delete("urgent");
-          params.set("cashDue", "1");
-          params.set("status", "DELIVERED");
-          params.set("method", "CASH");
-          params.set("payment", "PENDING");
-        }
-        if (from !== null && to !== null && parseReportRange(from, to)) {
-          params.set("from", from);
-          params.set("to", to);
-        }
-        if (page && /^[1-9][0-9]{0,3}$/.test(page)) params.set("page", page);
-      }
-    } catch {
-      // Yanlış returnTo yox sayılır.
-    }
-  }
-  params.set("notice", notice);
-  return "/admin/orders?" + params.toString();
+  return buildOrderNoticeUrl(
+    formData.get("returnTo"),
+    notice,
+    (from, to) => parseReportRange(from, to) !== null
+  );
 }
 
 async function updateOrderStatus(formData: FormData) {
