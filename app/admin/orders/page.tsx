@@ -22,6 +22,7 @@ type OrdersPageProps = {
     from?: string | string[];
     to?: string | string[];
     notice?: string | string[];
+    cashDue?: string | string[];
   }>;
 };
 
@@ -275,23 +276,30 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     ? NOTICE_LABELS[noticeKey as NoticeCode]
     : null;
   const noticeIsError = noticeKey === "stale" || noticeKey === "invalid";
-  const overdueOnly = query.urgent === "1";
+  // Cash Due qısa keçidi yalnız çatdırılmış, nağd və təsdiqlənməmiş
+  // sifarişləri göstərir. Bu rejim urgent rejimindən üstündür.
+  const cashDueOnly = query.cashDue === "1";
+  const overdueOnly = !cashDueOnly && query.urgent === "1";
   const requestedStatus =
     typeof query.status === "string" ? query.status : null;
   // Gecikən sifarişlər həmişə NEW olmalıdır, URL-dəki başqa status nəzərə alınmır.
-  const selectedStatus: OrderStatus | null = overdueOnly
-    ? "NEW"
-    : isOrderStatus(requestedStatus)
-      ? requestedStatus
-      : null;
-  const selectedMethod: PaymentMethod | null =
-    typeof query.method === "string" &&
-    Object.prototype.hasOwnProperty.call(METHOD_LABELS, query.method)
+  const selectedStatus: OrderStatus | null = cashDueOnly
+    ? "DELIVERED"
+    : overdueOnly
+      ? "NEW"
+      : isOrderStatus(requestedStatus)
+        ? requestedStatus
+        : null;
+  const selectedMethod: PaymentMethod | null = cashDueOnly
+    ? "CASH"
+    : typeof query.method === "string" &&
+        Object.prototype.hasOwnProperty.call(METHOD_LABELS, query.method)
       ? (query.method as PaymentMethod)
       : null;
-  const selectedPayment: PaymentStatus | null =
-    typeof query.payment === "string" &&
-    Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, query.payment)
+  const selectedPayment: PaymentStatus | null = cashDueOnly
+    ? "PENDING"
+    : typeof query.payment === "string" &&
+        Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, query.payment)
       ? (query.payment as PaymentStatus)
       : null;
 
@@ -351,7 +359,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
   // Səhifələmə filtrdən sonrakı real say üzrə edilir. Ümumi statistika
   // isə həmişə restoranın bütün sifarişlərini əhatə edir.
-  const [filteredCount, statusGroups, paidTotals] = await Promise.all([
+  const [filteredCount, statusGroups, paidTotals, cashDueTotals] = await Promise.all([
     db.order.count({ where: filteredWhere }),
     db.order.groupBy({
       by: ["status"],
@@ -362,6 +370,17 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
       where: {
         restaurantId: session.restaurantId,
         paymentStatus: "PAID",
+      },
+      _sum: { total: true },
+      _count: { _all: true },
+    }),
+    // Bu məbləğ gəlir deyil; yalnız hələ təsdiqlənməmiş nağd ödənişdir.
+    db.order.aggregate({
+      where: {
+        restaurantId: session.restaurantId,
+        status: "DELIVERED",
+        paymentMethod: "CASH",
+        paymentStatus: "PENDING",
       },
       _sum: { total: true },
       _count: { _all: true },
@@ -415,6 +434,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     if (selectedPayment) params.set("payment", selectedPayment);
     if (orderSearch) params.set("q", orderSearch);
     if (overdueOnly) params.set("urgent", "1");
+    if (cashDueOnly) params.set("cashDue", "1");
     if (dateRange) {
       params.set("from", dateRange.from);
       params.set("to", dateRange.to);
@@ -498,17 +518,32 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 {paidTotals._sum.total?.toString() ?? "0.00"} ₼
               </p>
             </div>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-900">
+                Çatdırılıb, nağd ödənişi gözlənilir
+              </p>
+              <p className="mt-1 text-2xl font-bold">{cashDueTotals._count._all}</p>
+              <p className="mt-1 text-sm font-semibold">
+                {cashDueTotals._sum.total?.toFixed(2) ?? "0.00"} ₼
+              </p>
+              <Link href="/admin/orders?cashDue=1"
+                className="mt-3 inline-block rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white">
+                Təsdiq gözləyən nağd sifarişlər
+              </Link>
+            </div>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
             Bu göstəricilər filtrdən asılı deyil və restoranın bütün sifarişlərini
             əhatə edir. Təsdiqlənmiş ödəniş məbləği sistemdə PAID statuslu
             sifarişlərin cəmidir; bank hesablaşması barədə təsdiq deyil.
+            Gözlənilən nağd məbləğ isə hələ alınmamış və ya təsdiqlənməmiş
+            nağd ödənişləri ifadə edir.
           </p>
         </section>
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
-          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}:${dateRange?.from ?? ""}:${dateRange?.to ?? ""}`}
+          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}:${cashDueOnly}:${dateRange?.from ?? ""}:${dateRange?.to ?? ""}`}
             method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş nömrəsi
@@ -615,6 +650,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {orderSearch ? " · Nömrə: " + orderSearch : ""}
             {overdueOnly ? " · Əvvəlcə ən köhnə gecikən sifarişlər" : ""}
+            {cashDueOnly ? " · Çatdırılıb, nağd ödənişi gözlənilir" : ""}
             {dateRange ? " · Tarix: " + dateRange.from + " — " + dateRange.to : ""}
             {" · "}Səhifə {page} / {pageCount}
           </p>
