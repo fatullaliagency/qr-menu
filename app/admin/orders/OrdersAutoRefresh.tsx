@@ -8,6 +8,7 @@ const REFRESH_MS = 10_000;
 
 type LatestOrder = { id: string; createdAt: string };
 type NotificationSnapshot = {
+  scope: string;
   newCount: number;
   overdueCount: number;
   latestOrder: LatestOrder | null;
@@ -37,6 +38,7 @@ export default function OrdersAutoRefresh() {
   const audioRef = useRef<AudioContext | null>(null);
   const hasBaseline = useRef(false);
   const latestRef = useRef<LatestOrder | null>(null);
+  const scopeRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +64,7 @@ export default function OrdersAutoRefresh() {
             // bazası yeni restoranın sifarişi kimi qəbul edilməməlidir.
             hasBaseline.current = false;
             latestRef.current = null;
+            scopeRef.current = null;
             setError("Sessiya bitib. Admin panelinə yenidən daxil olun.");
             router.refresh();
           }
@@ -70,6 +73,9 @@ export default function OrdersAutoRefresh() {
         if (!response.ok) throw new Error("Bildiriş məlumatı alınmadı.");
         const data = (await response.json()) as NotificationSnapshot;
         if (
+          typeof data.scope !== "string" ||
+          data.scope.length < 1 ||
+          data.scope.length > 150 ||
           !Number.isSafeInteger(data.newCount) ||
           data.newCount < 0 ||
           !Number.isSafeInteger(data.overdueCount) ||
@@ -83,6 +89,18 @@ export default function OrdersAutoRefresh() {
           throw new Error("Yanlış bildiriş məlumatı.");
         }
         if (cancelled) return;
+
+        // A second tab can log in to another restaurant without a 401 here.
+        // Never treat that restaurant's existing orders as newly received orders.
+        if (scopeRef.current !== null && scopeRef.current !== data.scope) {
+          hasBaseline.current = false;
+          latestRef.current = null;
+          setLastAlert(null);
+          alertsEnabledRef.current = false;
+          setAlertsEnabled(false);
+          setPermissionInfo("Restoran hesabı dəyişdi. Bildirişləri yenidən aktiv edin.");
+        }
+        scopeRef.current = data.scope;
 
         const latest = data.latestOrder;
         const isNewOrder =
