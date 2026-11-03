@@ -1,0 +1,29 @@
+/* Yalnız mətbəx qəbzinin çap görünüşünə aiddir. */
+@media print {
+  @page {
+    margin: 5mm;
+  }
+
+  .kitchen-print-controls {
+    display: none !important;
+  }
+
+  .kitchen-print-page {
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .kitchen-receipt {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    break-inside: avoid;
+    color: black !important;
+  }
+}

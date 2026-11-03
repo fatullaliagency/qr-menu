@@ -773,7 +773,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                   {item.lineTotal.toString()} ₼
                 </p>
               ))}
-              <div className="pt-3">
+              <div className="flex flex-wrap items-center gap-3 pt-3">
                 <CopyKitchenOrderButton
                   orderId={order.id}
                   items={order.items.map((item) => ({
@@ -781,6 +781,14 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                     quantity: item.quantity,
                   }))}
                 />
+                <Link
+                  href={`/admin/orders/${encodeURIComponent(order.id)}/print`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-200"
+                >
+                  🖨️ Mətbəx qəbzini çap et
+                </Link>
               </div>
             </div>
 
