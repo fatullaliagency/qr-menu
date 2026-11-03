@@ -1,8 +1,10 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
-
-const PURPOSE = "qr-menu-order-tracking:v1:";
+import {
+  createOrderTrackingToken,
+  verifyOrderTrackingToken,
+  isTrackingTokenFormatValid,
+} from "@/app/lib/order-tracking-crypto";
 
 function secret(): string {
   const value = process.env.ADMIN_SESSION_SECRET;
@@ -13,21 +15,11 @@ function secret(): string {
 }
 
 export function makeTrackingToken(orderId: string): string {
-  return createHmac("sha256", secret())
-    .update(PURPOSE + orderId)
-    .digest("hex");
+  return createOrderTrackingToken(secret(), orderId);
 }
 
 export function validTrackingToken(orderId: string, token: string): boolean {
-  if (
-    typeof orderId !== "string" ||
-    orderId.length < 10 ||
-    orderId.length > 150 ||
-    !/^[a-f0-9]{64}$/.test(token)
-  ) {
-    return false;
-  }
-  const expected = Buffer.from(makeTrackingToken(orderId), "hex");
-  const actual = Buffer.from(token, "hex");
-  return timingSafeEqual(expected, actual);
+  // Invalid links fail before accessing the server secret or querying the DB.
+  if (!isTrackingTokenFormatValid(orderId, token)) return false;
+  return verifyOrderTrackingToken(secret(), orderId, token);
 }
