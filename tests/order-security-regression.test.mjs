@@ -14,6 +14,7 @@ function source(path) {
 const kitchen = source("app/admin/orders/kitchen/page.tsx");
 const print = source("app/admin/orders/[id]/print/page.tsx");
 const notifications = source("app/admin/orders/notifications/route.ts");
+const notificationClient = source("app/admin/orders/OrdersAutoRefresh.tsx");
 const admin = source("app/admin/orders/page.tsx");
 const writes = source("app/lib/order-write-service.ts");
 const customerOrders = source("app/[slug]/order-actions.ts");
@@ -69,6 +70,17 @@ test("Order notification endpoint requires session and returns only a tiny no-st
   for (const forbidden of ["customerPhone", "customerName", "addressText", "customerNote", "paymentStatus", "total: true"]) {
     assert.equal(notifications.includes(forbidden), false);
   }
+});
+
+test("Order alert watermark is reset across restaurant sessions without replaying alerts", () => {
+  assert.match(notifications, /scope: session\.restaurantId/);
+  assert.match(notificationClient, /typeof data\.scope !== "string"/);
+  assert.match(notificationClient, /scopeRef\.current !== null && scopeRef\.current !== data\.scope/);
+  assert.match(notificationClient, /hasBaseline\.current = false;/);
+  assert.match(notificationClient, /latestRef\.current = null;/);
+  assert.match(notificationClient, /setLastAlert\(null\)/);
+  assert.match(notificationClient, /alertsEnabledRef\.current = false;/);
+  assert.match(notificationClient, /scopeRef\.current = data\.scope;/);
 });
 
 test("All status changes retain session authorization and conditional tenant writes", () => {
