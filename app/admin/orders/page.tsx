@@ -189,17 +189,46 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
       ? (query.payment as PaymentStatus)
       : null;
 
-  const orders = await db.order.findMany({
-    where: {
-      restaurantId: session.restaurantId,
-      ...(selectedStatus ? { status: selectedStatus } : {}),
-      ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
-      ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: { items: true },
-  });
+  // Siyahı filtrlənir, ümumi statistika isə restoranın bütün sifarişlərini əhatə edir.
+  const [orders, statusGroups, paidTotals] = await Promise.all([
+    db.order.findMany({
+      where: {
+        restaurantId: session.restaurantId,
+        ...(selectedStatus ? { status: selectedStatus } : {}),
+        ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
+        ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { items: true },
+    }),
+    db.order.groupBy({
+      by: ["status"],
+      where: { restaurantId: session.restaurantId },
+      _count: { _all: true },
+    }),
+    db.order.aggregate({
+      where: {
+        restaurantId: session.restaurantId,
+        paymentStatus: "PAID",
+      },
+      _sum: { total: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const counts = Object.fromEntries(
+    statusGroups.map((item) => [item.status, item._count._all])
+  ) as Partial<Record<OrderStatus, number>>;
+  const totalOrders = statusGroups.reduce(
+    (sum, item) => sum + item._count._all,
+    0
+  );
+  const activeOrders =
+    (counts.NEW ?? 0) +
+    (counts.CONFIRMED ?? 0) +
+    (counts.PREPARING ?? 0) +
+    (counts.ON_THE_WAY ?? 0);
 
   return (
     <main className="min-h-screen bg-gray-100 p-5 text-gray-900">
@@ -217,6 +246,44 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
         </div>
 
         <OrdersAutoRefresh />
+
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-lg font-semibold">Restoranın sifariş statistikası</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg bg-zinc-100 p-4">
+              <p className="text-sm text-zinc-600">Cəmi sifariş</p>
+              <p className="mt-1 text-2xl font-bold">{totalOrders}</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-4">
+              <p className="text-sm text-amber-900">Yeni sifarişlər</p>
+              <p className="mt-1 text-2xl font-bold">{counts.NEW ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-blue-50 p-4">
+              <p className="text-sm text-blue-900">İcrada olan sifarişlər</p>
+              <p className="mt-1 text-2xl font-bold">{activeOrders}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-900">Çatdırılan sifarişlər</p>
+              <p className="mt-1 text-2xl font-bold">{counts.DELIVERED ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-rose-50 p-4">
+              <p className="text-sm text-rose-900">Ləğv edilən sifarişlər</p>
+              <p className="mt-1 text-2xl font-bold">{counts.CANCELLED ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-900">Ödənişi təsdiqlənən</p>
+              <p className="mt-1 text-2xl font-bold">{paidTotals._count._all}</p>
+              <p className="mt-1 text-sm font-semibold">
+                {paidTotals._sum.total?.toString() ?? "0.00"} ₼
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-zinc-600">
+            Bu göstəricilər filtrdən asılı deyil və restoranın bütün sifarişlərini
+            əhatə edir. Təsdiqlənmiş ödəniş məbləği sistemdə PAID statuslu
+            sifarişlərin cəmidir; bank hesablaşması barədə təsdiq deyil.
+          </p>
+        </section>
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
