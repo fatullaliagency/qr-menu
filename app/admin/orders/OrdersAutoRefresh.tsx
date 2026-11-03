@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { isLaterOrderMarker, shouldNotifyOfOrder } from "@/app/lib/order-notification-marker";
+import { isLaterOrderMarker, shouldNotifyOfOrder, orderAlertLink } from "@/app/lib/order-notification-marker";
 
 const REFRESH_MS = 10_000;
 
@@ -143,7 +143,7 @@ export default function OrdersAutoRefresh() {
                 });
                 notice.onclick = () => {
                   window.focus();
-                  window.location.assign("/admin/orders?status=NEW");
+                  window.location.assign(orderAlertLink(latest?.id));
                 };
               } catch {
                 // Brauzer bildirişi dəstəklənməsə, səhifədəki say yenilənir.
