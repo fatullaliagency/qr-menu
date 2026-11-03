@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ error?: string | string[] }>;
+  searchParams: Promise<{ error?: string | string[]; q?: string | string[] }>;
 };
 
 export default function SuperAdminPage(props: Props) {
@@ -82,7 +82,7 @@ async function SuperAdminContent({ searchParams }: Props) {
   // Sifarişləri yalnız say və ödəniş vəziyyəti üzrə toplayırıq:
   // müştəri adı, telefon və ünvanı ilkin icmalda göstərilmir.
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const [restaurants, orderGroups, paymentGroups, recentGroups, paidAmounts] = await Promise.all([
+  const [restaurants, orderGroups, paymentGroups, recentGroups, paidAmounts, categoryGroups, menuItemGroups] = await Promise.all([
     db.restaurant.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, slug: true },
@@ -105,6 +105,14 @@ async function SuperAdminContent({ searchParams }: Props) {
       where: { paymentStatus: "PAID" },
       _sum: { total: true },
     }),
+    db.category.groupBy({
+      by: ["restaurantId"],
+      _count: { _all: true },
+    }),
+    db.menuItem.groupBy({
+      by: ["restaurantId"],
+      _count: { _all: true },
+    }),
   ]);
 
   const overview = restaurants.map((restaurant) => {
@@ -126,12 +134,28 @@ async function SuperAdminContent({ searchParams }: Props) {
         recentGroups.find((group) => group.restaurantId === restaurant.id)?._count._all ?? 0,
       paidTotal:
         paidAmounts.find((group) => group.restaurantId === restaurant.id)?._sum.total?.toString() ?? "0.00",
+      categoryCount:
+        categoryGroups.find((group) => group.restaurantId === restaurant.id)?._count._all ?? 0,
+      menuItemCount:
+        menuItemGroups.find((group) => group.restaurantId === restaurant.id)?._count._all ?? 0,
     };
   });
 
   const totalOrders = overview.reduce((sum, restaurant) => sum + restaurant.total, 0);
   const totalPaid = overview.reduce((sum, restaurant) => sum + restaurant.paid, 0);
   const recentOrders = overview.reduce((sum, restaurant) => sum + restaurant.lastSevenDays, 0);
+
+  // Axtarış yalnız görünən restoran siyahısını süzgəcdən keçirir.
+  // Ümumi göstəricilər bütün restoranlar üzrə qalır.
+  const query = await searchParams;
+  const search = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
+  const normalized = search.toLocaleLowerCase("az-AZ");
+  const visibleRestaurants = normalized
+    ? overview.filter((restaurant) =>
+        restaurant.name.toLocaleLowerCase("az-AZ").includes(normalized) ||
+        restaurant.slug.toLocaleLowerCase("az-AZ").includes(normalized)
+      )
+    : overview;
 
   return (
     <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
@@ -184,10 +208,35 @@ async function SuperAdminContent({ searchParams }: Props) {
             Məbləğlər yalnız ödəniş statusu PAID olan sifarişlər üzrə hesablanır.
             Bu göstəricilər bank hesabı ilə üzləşdirilmiş maliyyə hesabatı deyil.
           </p>
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <form action="/superadmin" method="get" role="search"
+            className="mb-3 flex flex-wrap items-end gap-3">
+            <label htmlFor="restaurant-search" className="flex-1 text-sm font-medium">
+              Restoran adı və ya URL adına görə axtar
+              <input id="restaurant-search" type="search" name="q"
+                maxLength={80} defaultValue={search}
+                placeholder="Məsələn: testrestoran"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900" />
+            </label>
+            <button type="submit"
+              className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white">
+              Axtar
+            </button>
+            <Link href="/superadmin"
+              className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium">
+              Sıfırla
+            </Link>
+          </form>
+          {search && (
+            <p role="status" className="mb-3 text-sm text-zinc-600">
+              Axtarış nəticəsi: {visibleRestaurants.length} / {restaurants.length} restoran
+            </p>
+          )}
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
               <tr className="border-b text-zinc-600">
                 <th className="p-3">Restoran</th>
+                <th className="p-3">Kateqoriya</th>
+                <th className="p-3">Məhsul</th>
                 <th className="p-3">Cəmi sifariş</th>
                 <th className="p-3">Yeni sifariş</th>
                 <th className="p-3">Son 7 gün</th>
@@ -196,7 +245,7 @@ async function SuperAdminContent({ searchParams }: Props) {
               </tr>
             </thead>
             <tbody>
-              {overview.map((restaurant) => (
+              {visibleRestaurants.map((restaurant) => (
                 <tr key={restaurant.id} className="border-b last:border-0">
                   <td className="p-3 font-semibold">
                     {restaurant.name}
@@ -222,6 +271,8 @@ async function SuperAdminContent({ searchParams }: Props) {
                       Restoranı düzəlt
                     </Link>
                   </td>
+                  <td className="p-3">{restaurant.categoryCount}</td>
+                  <td className="p-3">{restaurant.menuItemCount}</td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
                   <td className="p-3">{restaurant.lastSevenDays}</td>
@@ -231,8 +282,10 @@ async function SuperAdminContent({ searchParams }: Props) {
               ))}
             </tbody>
           </table>
-          {overview.length === 0 && (
-            <p className="p-3 text-zinc-600">Restoran qeydi yoxdur.</p>
+          {visibleRestaurants.length === 0 && (
+            <p className="p-3 text-zinc-600">
+              {search ? "Axtarışa uyğun restoran tapılmadı." : "Restoran qeydi yoxdur."}
+            </p>
           )}
         </section>
       </div>
