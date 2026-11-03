@@ -18,3 +18,10 @@ This adds the `OrderStatusEvent` table for new order events only. No card integr
 - Never include customer name, phone, address, tokens or payment secrets.
 - Use a transaction: conditional `Order.updateMany` + `OrderStatusEvent.create`. If update fails, no event should be recorded.
 - Restrict all reads by the authenticated owner's `restaurantId`.
+
+## Release gate (feature is OFF by default)
+- Code may be deployed with `ENABLE_ORDER_STATUS_HISTORY` absent/false safely before migration.
+- Stage backend does **not** have a verified migration connection in the current connector session; do not turn the feature on until table existence has been checked.
+- After applying the staging-only migration, set `ENABLE_ORDER_STATUS_HISTORY=true` **only** on the `qr-menu-staging` project and redeploy.
+- Confirm authenticated status changes create exactly one event and stale/duplicate submissions create none. Verify events never appear to a different restaurant. New customer orders get one initial NEW event.
+- Existing historic orders remain without fabricated prior events.

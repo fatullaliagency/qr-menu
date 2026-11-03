@@ -9,6 +9,7 @@ import { getAdminSession } from "@/app/lib/admin-auth";
 import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 import OrderSubmitButton from "./OrderSubmitButton";
+import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 
 type OrdersPageProps = {
   searchParams: Promise<{
@@ -161,16 +162,41 @@ async function updateOrderStatus(formData: FormData) {
     redirect(actionNoticeUrl(formData, "invalid"));
   }
 
-  const result = await db.order.updateMany({
-    where: {
-      id: orderId,
-      restaurantId: session.restaurantId,
-      status: currentStatus,
-    },
-    data: { status: nextStatus },
-  });
+  // Tarixçə açıqdırsa status dəyişikliyi və audit yazısı eyni tranzaksiyadadır.
+  // Tarixçə cədvəli yoxdursa tranzaksiya geri qaytarılır, yarımçıq status
+  // yenilənməsi baş vermir. Migration tamamlanmayıbsa köhnə etibarlı axın qalır.
+  const changed = orderHistoryEnabled()
+    ? await db.$transaction(async (tx) => {
+        const result = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            restaurantId: session.restaurantId,
+            status: currentStatus,
+          },
+          data: { status: nextStatus },
+        });
+        if (result.count !== 1) return false;
+        await tx.orderStatusEvent.create({
+          data: {
+            orderId,
+            restaurantId: session.restaurantId,
+            fromStatus: currentStatus,
+            toStatus: nextStatus,
+            actor: "RESTAURANT",
+          },
+        });
+        return true;
+      })
+    : (await db.order.updateMany({
+        where: {
+          id: orderId,
+          restaurantId: session.restaurantId,
+          status: currentStatus,
+        },
+        data: { status: nextStatus },
+      })).count === 1;
 
-  if (result.count !== 1) {
+  if (!changed) {
     redirect(actionNoticeUrl(formData, "stale"));
   }
 
@@ -353,6 +379,33 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
     take: PAGE_SIZE,
     include: { items: true },
   });
+
+  // Tarixçə yalnız migration yoxlanıb ENABLE_ORDER_STATUS_HISTORY=true
+  // edildikdən sonra oxunur. Hər sorğu təsdiqlənmiş restoranla məhdudlaşır.
+  const historyEnabled = orderHistoryEnabled();
+  const statusHistory = historyEnabled && orders.length > 0
+    ? await db.orderStatusEvent.findMany({
+        where: {
+          restaurantId: session.restaurantId,
+          orderId: { in: orders.map((order) => order.id) },
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          orderId: true,
+          fromStatus: true,
+          toStatus: true,
+          actor: true,
+          createdAt: true,
+        },
+      })
+    : [];
+  const statusHistoryByOrder = new Map<string, typeof statusHistory>();
+  for (const event of statusHistory) {
+    const events = statusHistoryByOrder.get(event.orderId) ?? [];
+    events.push(event);
+    statusHistoryByOrder.set(event.orderId, events);
+  }
 
   // Səhifələr arasında hər üç aktiv filtr saxlanılır.
   const pageLink = (nextPage: number): string => {
@@ -645,6 +698,38 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             <p className="font-bold">
               Ümumi məbləğ: {order.total.toString()} ₼
             </p>
+
+            {historyEnabled && (
+              <details className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <summary className="cursor-pointer font-semibold">
+                  Sifarişin status tarixçəsi
+                </summary>
+                {(statusHistoryByOrder.get(order.id)?.length ?? 0) > 0 ? (
+                  <ol className="mt-3 space-y-2 text-sm">
+                    {statusHistoryByOrder.get(order.id)?.map((event) => (
+                      <li key={event.id} className="border-l-2 border-emerald-600 pl-3">
+                        <p className="font-medium">
+                          {event.fromStatus
+                            ? STATUS_LABELS[event.fromStatus] + " → "
+                            : "Sifariş yaradıldı → "}
+                          {STATUS_LABELS[event.toStatus]}
+                        </p>
+                        <p className="text-zinc-600">
+                          {event.createdAt.toLocaleString("az-AZ", { timeZone: "Asia/Baku" })}
+                          {" · "}
+                          {event.actor === "CUSTOMER" ? "Müştəri" : "Restoran"}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-600">
+                    Bu sifariş üçün əvvəlki status dəyişiklikləri qeydə alınmayıb.
+                    Tarixçə yalnız aktivləşdirildikdən sonrakı əməliyyatları göstərir.
+                  </p>
+                )}
+              </details>
+            )}
 
             <div className="rounded-lg bg-gray-50 p-4">
               <p>

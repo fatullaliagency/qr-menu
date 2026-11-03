@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { makeTrackingToken } from "@/app/lib/order-tracking";
+import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 
 type CartLine = { itemId: string; quantity: number };
 type CashOrderInput = {
@@ -143,6 +144,20 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
         paymentMethod: "CASH",
         paymentStatus: "PENDING",
         items: { create: lines },
+        // Yeni sifarişin ilk NEW hadisəsi sifarişlə eyni Prisma tranzaksiyasında
+        // yaradılır. Tarixçə hazır olmayan bazalarda bu sahə ümumiyyətlə getmir.
+        ...(orderHistoryEnabled()
+          ? {
+              statusEvents: {
+                create: {
+                  restaurantId: restaurant.id,
+                  fromStatus: null,
+                  toStatus: "NEW" as const,
+                  actor: "CUSTOMER",
+                },
+              },
+            }
+          : {}),
       },
       select: { id: true },
     });
