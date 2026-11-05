@@ -123,7 +123,7 @@ test("Next.js HTTP routes enforce signed tracking and restaurant session isolati
       });
       assert.equal(response.status, 200);
       assert.match(response.headers.get("cache-control") ?? "", /no-store/);
-      assert.match(response.headers.get("vary") ?? "", /(?:^|,)\\s*Cookie(?:,|$)/i);
+      assert.ok((response.headers.get("vary") ?? "").split(",").some((part) => part.trim().toLowerCase() === "cookie"));
       const body = await response.json();
       assert.equal(JSON.stringify(body).includes(baseOrder.customerPhone), false);
       return body;
