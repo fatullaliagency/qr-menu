@@ -410,8 +410,11 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       await page.locator('input[type="password"]').fill(pinA);
       await page.getByRole("button", { name: /Daxil Ol/ }).click();
       await page.getByRole("link", { name: /Sifarişlər/ }).waitFor({ timeout: 25_000 });
+      const initialNewCount = await db.order.count({
+        where: { restaurantId: restaurantA.id, status: "NEW" },
+      });
       await page.goto(BASE + "/admin/orders");
-      await page.getByRole("heading", { name: /Yeni sifarişlər: 0/ })
+      await page.getByRole("heading", { name: "Yeni sifarişlər: " + initialNewCount })
         .waitFor({ timeout: 20_000 });
 
       // First poll establishes a baseline, even though orders already exist.
@@ -429,7 +432,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       assert.deepEqual(await counters(), { tones: 0, notifications: [] });
 
       await alertsContext.setOffline(false);
-      await page.getByRole("heading", { name: /Yeni sifarişlər: 1/ })
+      await page.getByRole("heading", { name: "Yeni sifarişlər: " + (initialNewCount + 1) })
         .waitFor({ timeout: 30_000 });
       await page.getByText(/Yeni sifariş gəldi! Son bildiriş:/)
         .waitFor({ timeout: 30_000 });
@@ -450,7 +453,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       // Re-polling and editing an existing order must not repeat the alert.
       await db.order.update({ where: { id: first.id }, data: { status: "CONFIRMED" } });
       await page.evaluate(() => window.dispatchEvent(new Event("online")));
-      await page.getByRole("heading", { name: /Yeni sifarişlər: 0/ })
+      await page.getByRole("heading", { name: "Yeni sifarişlər: " + initialNewCount })
         .waitFor({ timeout: 20_000 });
       assert.deepEqual(await counters(), result);
 
@@ -459,7 +462,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       await page.getByRole("button", { name: /Bildirişi söndür/ }).click();
       await page.getByRole("button", { name: /Bildirişi aktiv et/ }).waitFor();
       await createNewOrder("CI Muted Alert B");
-      await page.getByRole("heading", { name: /Yeni sifarişlər: 1/ })
+      await page.getByRole("heading", { name: "Yeni sifarişlər: " + (initialNewCount + 1) })
         .waitFor({ timeout: 30_000 });
       assert.deepEqual(await counters(), result);
     } finally {
