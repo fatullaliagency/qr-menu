@@ -231,4 +231,100 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       await secondContext.close();
     }
   });
+  await t.test("Mobile checkout stays usable and a lost server response cannot duplicate an order", async () => {
+    const mobileContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+    });
+    const mobile = await mobileContext.newPage();
+    try {
+      await mobile.goto(BASE + "/" + restaurantA.slug);
+      await mobile.getByRole("button", {
+        name: "CI Browser Test Dish — səbətə əlavə et",
+      }).click();
+      await mobile.getByRole("button", {
+        name: "Sifariş ver →", exact: true,
+      }).click();
+
+      await mobile.locator('input[name="customerName"]').fill("CI Mobile Retry Customer");
+      await mobile.locator('input[name="customerPhone"]').fill("+994501234568");
+      await mobile.locator('textarea[name="addressText"]').fill("CI Mobile Retry Street 15");
+
+      // Check at a phone-sized viewport, including the checkout dialog.
+      const layout = await mobile.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        submitVisible: (() => {
+          const button = document.querySelector('button[type="submit"]');
+          if (!button) return false;
+          const rect = button.getBoundingClientRect();
+          return rect.width > 0 && rect.left >= -1 && rect.right <= innerWidth + 1;
+        })(),
+      }));
+      assert.equal(layout.viewport, 390);
+      assert.ok(layout.scrollWidth <= layout.viewport + 1,
+        "Mobile page must not require horizontal scrolling: " + JSON.stringify(layout));
+      assert.equal(layout.submitVisible, true);
+
+      // Intercept ONLY the first Next.js Server Action POST. route.fetch()
+      // lets the real server create the order; abort() then deliberately
+      // discards the successful response before the browser receives it.
+      let actionCount = 0;
+      let committedRequest = false;
+      await mobile.route(BASE + "/" + restaurantA.slug, async (route) => {
+        if (route.request().method() !== "POST" || actionCount > 0) {
+          await route.continue();
+          return;
+        }
+        actionCount++;
+        const response = await route.fetch();
+        committedRequest = response.ok();
+        await route.abort("failed");
+      });
+
+      await mobile.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
+      await mobile.getByRole("alert").filter({
+        hasText: "Sifariş göndərilmədi.",
+      }).waitFor({ timeout: 30_000 });
+
+      assert.equal(actionCount, 1, "First submit must send exactly one Server Action");
+      assert.equal(committedRequest, true, "The server must have accepted the dropped-response request");
+
+      const created = await db.order.findMany({
+        where: {
+          restaurantId: restaurantA.id,
+          customerName: "CI Mobile Retry Customer",
+        },
+        select: { id: true, paymentMethod: true, items: { select: { quantity: true } } },
+      });
+      assert.equal(created.length, 1, "The first request must actually persist exactly one order");
+      assert.equal(created[0].paymentMethod, "CASH");
+      assert.equal(created[0].items.length, 1);
+
+      const pendingKey = await mobile.evaluate((slug) => {
+        const raw = sessionStorage.getItem("qr-menu:pending-cash-order:" + slug);
+        return raw ? JSON.parse(raw).requestId : null;
+      }, restaurantA.slug);
+      assert.equal(pendingKey, created[0].id, "Retry must reuse the persisted idempotency key");
+
+      // The second click must recover the existing order and its original
+      // tracking URL rather than inserting another Order or OrderItem.
+      await mobile.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
+      await mobile.waitForURL(/\/order\/track\/[^/]+\?t=[a-f0-9]{64}/, {
+        timeout: 30_000,
+      });
+      assert.equal(
+        decodeURIComponent(mobile.url().match(/\/order\/track\/([^?]+)/)?.[1] ?? ""),
+        created[0].id,
+      );
+      assert.equal(await db.order.count({
+        where: { restaurantId: restaurantA.id, customerName: "CI Mobile Retry Customer" },
+      }), 1);
+      assert.equal(await db.orderItem.count({ where: { orderId: created[0].id } }), 1);
+    } finally {
+      await mobileContext.close();
+    }
+  });
 });
