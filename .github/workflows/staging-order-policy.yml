@@ -59,3 +59,25 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test customer checkout, restaurant PIN, alerts and status in Chromium
         run: npm run test:orders:browser
+      - name: Dump disposable CI PostgreSQL and restore into a separate ephemeral database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qr-ci-backup"
+          trap 'rm -rf "$RUNNER_TEMP/qr-ci-backup"' EXIT
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$RUNNER_TEMP/qr-ci-backup:/backups" \
+            postgres:16-alpine pg_dump --host=127.0.0.1 --username=postgres \
+            --dbname=qr_menu_ci --format=custom --no-owner \
+            --file=/backups/qr-menu-ci.backup
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            postgres:16-alpine psql --host=127.0.0.1 --username=postgres \
+            --dbname=postgres --set=ON_ERROR_STOP=1 \
+            --command='CREATE DATABASE qr_menu_restore_ci'
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$RUNNER_TEMP/qr-ci-backup:/backups" \
+            postgres:16-alpine pg_restore --host=127.0.0.1 --username=postgres \
+            --dbname=qr_menu_restore_ci --no-owner --exit-on-error \
+            /backups/qr-menu-ci.backup
+          npm run test:orders:restore
+

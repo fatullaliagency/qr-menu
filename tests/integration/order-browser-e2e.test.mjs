@@ -470,6 +470,151 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     }
   });
 
+
+  await t.test("300 real HTTP Server Action checkouts in bounded parallel batches", {
+    timeout: 135_000,
+  }, async (t) => {
+    // Keep this entire fixture separate from Restaurant A/B. The browser
+    // suite cleans A/B, but the disposable CI backup must include all 300
+    // written orders so the restore test verifies real load data.
+    const loadRestaurant = await db.restaurant.create({
+      data: {
+        name: "CI HTTP Load Restaurant",
+        slug: "ci-load-" + randomUUID(),
+        phone: "+994501234567",
+      },
+    });
+    const loadCategory = await db.category.create({
+      data: { restaurantId: loadRestaurant.id, name: "CI Load Items" },
+    });
+    await db.menuItem.create({
+      data: {
+        restaurantId: loadRestaurant.id,
+        categoryId: loadCategory.id,
+        name: "CI Load Product",
+        price: 3.25,
+      },
+    });
+    const loadContext = await browser.newContext();
+    const loadPage = await loadContext.newPage();
+    let captured = null;
+    try {
+      // Observe the exact React/Next.js Server Action wire format generated
+      // by this actual production build, instead of guessing private headers.
+      await loadPage.route(BASE + "/" + loadRestaurant.slug, async (route) => {
+        const request = route.request();
+        if (request.method() === "POST" && !captured) {
+          const headers = await request.allHeaders();
+          if (headers["next-action"]) {
+            captured = { headers, body: request.postData() };
+          }
+        }
+        await route.continue();
+      });
+      await loadPage.goto(BASE + "/" + loadRestaurant.slug);
+      await loadPage.getByRole("button", {
+        name: "CI Load Product — səbətə əlavə et",
+      }).click();
+      await loadPage.getByRole("button", { name: "Sifariş ver →", exact: true }).click();
+      await loadPage.locator('input[name="customerName"]').fill("CI HTTP Load Customer");
+      await loadPage.locator('input[name="customerPhone"]').fill("+994501234567");
+      await loadPage.locator('textarea[name="addressText"]').fill("CI HTTP Load Test Street");
+      await loadPage.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
+      await loadPage.waitForURL(/\/order\/track\/[^/]+\?t=[a-f0-9]{64}/, {
+        timeout: 30_000,
+      });
+      const seedId = decodeURIComponent(
+        loadPage.url().match(/\/order\/track\/([^?]+)/)?.[1] ?? ""
+      );
+      assert.ok(captured?.body && captured.headers["next-action"],
+        "Must capture a genuine Next.js Server Action request");
+      assert.ok(captured.body.includes(seedId),
+        "The original request must contain the client's UUID attempt ID");
+      assert.equal(await db.order.count({
+        where: { restaurantId: loadRestaurant.id },
+      }), 1);
+
+      const requestHeaders = {};
+      for (const key of [
+        "next-action", "next-router-state-tree", "next-url",
+        "content-type", "accept", "rsc",
+      ]) {
+        if (captured.headers[key]) requestHeaders[key] = captured.headers[key];
+      }
+      requestHeaders.origin = BASE;
+
+      const total = 300;
+      const concurrent = 10;
+      const ids = Array.from({ length: total }, () => randomUUID());
+      assert.equal(new Set(ids).size, total);
+      const times = [];
+      const failures = [];
+      let cursor = 0;
+      const start = performance.now();
+      await Promise.all(Array.from({ length: concurrent }, async () => {
+        for (;;) {
+          const index = cursor++;
+          if (index >= total) return;
+          const body = captured.body.split(seedId).join(ids[index]);
+          const begun = performance.now();
+          try {
+            const response = await fetch(BASE + "/" + loadRestaurant.slug, {
+              method: "POST",
+              headers: requestHeaders,
+              body,
+              signal: AbortSignal.timeout(30_000),
+            });
+            await response.text();
+            times.push(performance.now() - begun);
+            if (!response.ok) failures.push("index=" + index + " HTTP " + response.status);
+          } catch (error) {
+            failures.push("index=" + index + " " + String(error).slice(0, 80));
+          }
+        }
+      }));
+      const elapsed = performance.now() - start;
+      assert.deepEqual(failures, [], "HTTP Server Actions must all respond successfully");
+
+      // HTTP 200 alone does not prove that a React Server Action succeeded.
+      // Verify all 300 unique primary keys AND their nested order items.
+      const inserted = await db.order.findMany({
+        where: { restaurantId: loadRestaurant.id, id: { in: ids } },
+        select: {
+          id: true, status: true, total: true, paymentMethod: true,
+          paymentStatus: true, items: { select: { quantity: true, lineTotal: true } },
+        },
+      });
+      assert.equal(inserted.length, total,
+        "Exactly 300 unique HTTP checkout requests must persist");
+      for (const order of inserted) {
+        assert.equal(order.status, "NEW");
+        assert.equal(order.paymentMethod, "CASH");
+        assert.equal(order.paymentStatus, "PENDING");
+        assert.equal(order.total.toString(), "3.25");
+        assert.equal(order.items.length, 1);
+        assert.equal(order.items[0].quantity, 1);
+        assert.equal(order.items[0].lineTotal.toString(), "3.25");
+      }
+      assert.equal(await db.order.count({
+        where: { restaurantId: loadRestaurant.id },
+      }), total + 1);
+      assert.equal(await db.order.count({
+        where: { restaurantId: restaurantB.id },
+      }), 0);
+      assert.equal(times.length, total);
+      times.sort((a, b) => a - b);
+      const percentile = (p) => Math.round(times[Math.ceil(total * p) - 1]);
+      t.diagnostic("LOAD_RESULT HTTP createCashOrder: 300 requests, 10 concurrent, 0 errors, " +
+        "elapsed_ms=" + Math.round(elapsed) +
+        ", p50_ms=" + percentile(0.50) +
+        ", p95_ms=" + percentile(0.95) +
+        ", p99_ms=" + percentile(0.99) +
+        ", max_ms=" + Math.round(times[times.length - 1]));
+    } finally {
+      await loadContext.close();
+    }
+  });
+
   await t.test("Mobile breakpoint layout and checkout controls", async (t) => {
     const sizes = [
       { width: 320, height: 568 },
