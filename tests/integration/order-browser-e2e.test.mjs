@@ -328,6 +328,145 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     }
   });
 
+  await t.test("Notification opt-in, simulated sound, offline recovery and no duplicate alerts", async () => {
+    // This instrumented Chromium context verifies browser API calls. No claim
+    // is made that a physical phone emitted audible sound or an OS toast.
+    const alertsContext = await browser.newContext({
+      extraHTTPHeaders: testHeader,
+      permissions: ["notifications"],
+    });
+    await alertsContext.addInitScript(() => {
+      const key = "qr-ci:notification-api-calls";
+      const record = (kind, details = null) => {
+        const counters = JSON.parse(sessionStorage.getItem(key) || '{"tones":0,"notifications":[]}');
+        if (kind === "tone") counters.tones += 1;
+        if (kind === "notification") counters.notifications.push(details);
+        sessionStorage.setItem(key, JSON.stringify(counters));
+      };
+      class InstrumentedAudioContext {
+        currentTime = 0;
+        destination = {};
+        resume() { return Promise.resolve(); }
+        close() { return Promise.resolve(); }
+        createOscillator() {
+          return {
+            type: "sine",
+            frequency: {
+              setValueAtTime() {},
+              linearRampToValueAtTime() {},
+            },
+            connect() {},
+            start() { record("tone"); },
+            stop() {},
+          };
+        }
+        createGain() {
+          return {
+            gain: {
+              setValueAtTime() {},
+              exponentialRampToValueAtTime() {},
+            },
+            connect() {},
+          };
+        }
+      }
+      class InstrumentedNotification {
+        static permission = "granted";
+        static requestPermission() { return Promise.resolve("granted"); }
+        constructor(title, options = {}) {
+          record("notification", { title, body: options.body, tag: options.tag });
+          this.onclick = null;
+        }
+      }
+      Object.defineProperty(window, "AudioContext", {
+        configurable: true, value: InstrumentedAudioContext,
+      });
+      Object.defineProperty(window, "Notification", {
+        configurable: true, value: InstrumentedNotification,
+      });
+    });
+    const page = await alertsContext.newPage();
+    const counters = () => page.evaluate(() => JSON.parse(
+      sessionStorage.getItem("qr-ci:notification-api-calls") ||
+      '{"tones":0,"notifications":[]}'
+    ));
+    const createNewOrder = async (label) => db.order.create({
+      data: {
+        id: randomUUID(),
+        restaurantId: restaurantA.id,
+        customerName: label,
+        customerPhone: "+994501234567",
+        addressText: "CI Notification Test Street",
+        subtotal: 1.25,
+        deliveryFee: 0,
+        total: 1.25,
+        paymentMethod: "CASH",
+        paymentStatus: "PENDING",
+        status: "NEW",
+      },
+    });
+    try {
+      await page.goto(BASE + "/admin?slug=" + restaurantA.slug);
+      await page.locator('input[type="password"]').fill(pinA);
+      await page.getByRole("button", { name: /Daxil Ol/ }).click();
+      await page.getByRole("link", { name: /Sifarişlər/ }).waitFor({ timeout: 25_000 });
+      await page.goto(BASE + "/admin/orders");
+      await page.getByRole("heading", { name: /Yeni sifarişlər: 0/ })
+        .waitFor({ timeout: 20_000 });
+
+      // First poll establishes a baseline, even though orders already exist.
+      assert.deepEqual(await counters(), { tones: 0, notifications: [] });
+      await page.getByRole("button", { name: /Bildirişi aktiv et/ }).click();
+      await page.getByRole("button", { name: /Bildirişi söndür/ }).waitFor();
+      await page.getByText("Səs və brauzer bildirişləri aktivdir.").waitFor();
+      assert.deepEqual(await counters(), { tones: 0, notifications: [] });
+
+      // A new order arrives while the browser is disconnected; the server
+      // retains it, but the page must not fake a delivered notification.
+      await alertsContext.setOffline(true);
+      const first = await createNewOrder("CI Offline Alert A");
+      await page.waitForTimeout(500);
+      assert.deepEqual(await counters(), { tones: 0, notifications: [] });
+
+      await alertsContext.setOffline(false);
+      await page.getByRole("heading", { name: /Yeni sifarişlər: 1/ })
+        .waitFor({ timeout: 30_000 });
+      await page.getByText(/Yeni sifariş gəldi! Son bildiriş:/)
+        .waitFor({ timeout: 30_000 });
+      await page.waitForFunction(() => {
+        const x = JSON.parse(sessionStorage.getItem("qr-ci:notification-api-calls") ||
+          '{"tones":0,"notifications":[]}');
+        return x.tones === 1 && x.notifications.length === 1;
+      }, null, { timeout: 10_000 });
+
+      let result = await counters();
+      assert.equal(result.tones, 1, "Exactly one audio oscillator must be started");
+      assert.equal(result.notifications.length, 1, "Exactly one OS notification call must occur");
+      assert.equal(result.notifications[0].title, "QR Menü — yeni sifariş");
+      assert.equal(result.notifications[0].tag, "qr-menu-new-order");
+      assert.equal(result.notifications[0].body.includes(first.customerName), false,
+        "Notification body must not leak customer details");
+
+      // Re-polling and editing an existing order must not repeat the alert.
+      await db.order.update({ where: { id: first.id }, data: { status: "CONFIRMED" } });
+      await page.evaluate(() => window.dispatchEvent(new Event("online")));
+      await page.getByRole("heading", { name: /Yeni sifarişlər: 0/ })
+        .waitFor({ timeout: 20_000 });
+      assert.deepEqual(await counters(), result);
+
+      // User opt-out disables both OS and audio APIs, but a new order still
+      // increments the admin dashboard count.
+      await page.getByRole("button", { name: /Bildirişi söndür/ }).click();
+      await page.getByRole("button", { name: /Bildirişi aktiv et/ }).waitFor();
+      await createNewOrder("CI Muted Alert B");
+      await page.getByRole("heading", { name: /Yeni sifarişlər: 1/ })
+        .waitFor({ timeout: 30_000 });
+      assert.deepEqual(await counters(), result);
+    } finally {
+      await alertsContext.close();
+    }
+  });
+
   await t.test("Mobile breakpoint layout and checkout controls", async (t) => {
     const sizes = [
       { width: 320, height: 568 },
