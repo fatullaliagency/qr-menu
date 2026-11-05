@@ -191,8 +191,26 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     }
     const order = await db.order.findUnique({ where: { id: orderId }, select: { status: true } });
     assert.equal(order?.status, "CONFIRMED");
-    await customer.locator("p.font-semibold").filter({ hasText: "Təsdiqləndi" })
-      .waitFor({ timeout: 30_000 });
+    // Customer tracking deliberately pauses polling in hidden browser tabs.
+    // Foreground the customer page after the restaurant admin action, just as
+    // a customer returning to their tracking page would do.
+    await customer.bringToFront();
+    const apiStatus = await customer.evaluate(async () => {
+      const result = await fetch(window.location.pathname + "/status" + window.location.search);
+      return { statusCode: result.status, body: await result.json() };
+    });
+    assert.equal(apiStatus.statusCode, 200);
+    assert.equal(apiStatus.body.status, "CONFIRMED");
+    try {
+      await customer.locator("p.font-semibold").filter({ hasText: "Təsdiqləndi" })
+        .waitFor({ timeout: 20_000 });
+    } catch (error) {
+      const state = await customer.evaluate(() => document.visibilityState);
+      throw new Error(
+        "Customer tracking UI stayed stale with visibility=" + state +
+        ", serverStatus=" + apiStatus.body.status + "; " + String(error)
+      );
+    }
   });
 
   await t.test("Second restaurant cannot see the first restaurant's customer order", async () => {
