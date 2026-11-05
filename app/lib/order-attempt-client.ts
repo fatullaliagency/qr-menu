@@ -2,7 +2,7 @@ import {
   canonicalCashOrderDraft,
   isValidOrderAttemptId,
   type CashOrderDraft,
-} from "./order-idempotency";
+} from "./order-idempotency.ts";
 
 const LIFETIME_MS = 24 * 60 * 60 * 1000;
 const STORAGE_PREFIX = "qr-menu:pending-cash-order:";
