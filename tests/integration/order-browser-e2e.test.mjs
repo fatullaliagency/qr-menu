@@ -140,7 +140,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     await customer.getByRole("button", {
       name: "CI Browser Test Dish — səbətə əlavə et",
     }).click();
-    await customer.getByRole("button", { name: "Sifariş ver →" }).click();
+    await customer.getByRole("button", { name: "Sifariş ver →", exact: true }).click();
     await customer.locator('input[name="customerName"]').fill("CI Browser Customer");
     await customer.locator('input[name="customerPhone"]').fill("+994501234567");
     await customer.locator('textarea[name="addressText"]').fill("CI Browser Test Street 15");
