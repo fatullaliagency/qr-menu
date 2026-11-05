@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { webcrypto } from "node:crypto";
+import { webcrypto, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   isValidOrderAttemptId,
@@ -12,14 +12,9 @@ import {
   clearCashOrderAttempt,
 } from "../app/lib/order-attempt-client.ts";
 
-const ids = [
-  "5d5d3491-d325-4d54-a48b-a6e77f4b4a11",
-  "dc00e3c5-a87c-4c52-94be-83ed51202ca2",
-  "73b776ea-e47d-42a4-9e4e-8c31fd48ab61",
-];
 const cryptoProvider = {
   subtle: webcrypto.subtle,
-  randomUUID: () => ids.shift() ?? "89a304f1-b512-4a15-aa84-d5b8e695d888",
+  randomUUID,
 };
 const sample = () => ({
   slug: "sample-restaurant",
@@ -55,7 +50,7 @@ const memoryStorage = () => {
 };
 
 test("Only strictly formatted random version-4 UUID order IDs are accepted", () => {
-  assert.equal(isValidOrderAttemptId(ids[0]), true);
+  assert.equal(isValidOrderAttemptId("5d5d3491-d325-4d54-a48b-a6e77f4b4a11"), true);
   for (const bad of ["", "123", "abc".repeat(12), "../other-order", "5d5d3491-d325-1d54-a48b-a6e77f4b4a11", null]) {
     assert.equal(isValidOrderAttemptId(bad), false);
   }
