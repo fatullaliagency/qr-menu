@@ -14,7 +14,7 @@ permissions:
 jobs:
   policy-tests:
     runs-on: ubuntu-latest
-    # Disposable PostgreSQL database, isolated from both staging and production.
+    # Disposable PostgreSQL service: never the staging or production database.
     services:
       postgres:
         image: postgres:16-alpine
@@ -29,6 +29,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_menu_ci
+      QR_MENU_EPHEMERAL_DB_TEST: "true"
+      ENABLE_WEB_ORDERS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,11 +45,11 @@ jobs:
         run: npx prisma generate
       - name: Create schema in disposable CI database only
         run: npx prisma db push --skip-generate
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_menu_ci
-          QR_MENU_EPHEMERAL_DB_TEST: "true"
       - name: Test order uniqueness and tenant isolation against PostgreSQL
         run: npm run test:orders:db
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_menu_ci
-          QR_MENU_EPHEMERAL_DB_TEST: "true"
+      - name: Generate disposable HTTP signing key
+        run: echo "ADMIN_SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Compile Next.js for localhost API smoke tests
+        run: npm run build
+      - name: Verify anonymous, tracked and tenant-scoped HTTP routes
+        run: npm run test:orders:http
