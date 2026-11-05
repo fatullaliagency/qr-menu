@@ -327,4 +327,104 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       await mobileContext.close();
     }
   });
+
+  await t.test("Mobile breakpoint layout and checkout controls", async (t) => {
+    const sizes = [
+      { width: 320, height: 568 },
+      { width: 360, height: 740 },
+      { width: 375, height: 667 },
+      { width: 390, height: 844 },
+      { width: 430, height: 932 },
+      { width: 768, height: 1024 },
+    ];
+    for (const size of sizes) {
+      await t.test(size.width + "px viewport: menu, cart, checkout and inputs fit", async () => {
+        const context = await browser.newContext({
+          viewport: size,
+          deviceScaleFactor: 2,
+          isMobile: true,
+          hasTouch: true,
+        });
+        const page = await context.newPage();
+        try {
+          await page.goto(BASE + "/" + restaurantA.slug);
+          await page.getByRole("heading", { name: "— MENYU —" }).waitFor();
+          await page.getByRole("button", {
+            name: "CI Browser Test Dish — səbətə əlavə et",
+          }).click();
+          const orderButton = page.getByRole("button", {
+            name: "Sifariş ver →", exact: true,
+          });
+          await orderButton.click();
+
+          const dialog = page.getByRole("dialog", { name: "Sifarişi təsdiqlə" });
+          await dialog.waitFor();
+          const customerName = dialog.locator('input[name="customerName"]');
+          const phone = dialog.locator('input[name="customerPhone"]');
+          const address = dialog.locator('textarea[name="addressText"]');
+          await customerName.fill("Mobile CI Test");
+          await phone.fill("+994501234569");
+          await address.fill("CI Test Street 20");
+
+          const stats = await page.evaluate(() => {
+            const dialog = document.querySelector('[role="dialog"]');
+            const select = (selector) => dialog?.querySelector(selector);
+            const inputs = [
+              select('input[name="customerName"]'),
+              select('input[name="customerPhone"]'),
+              select('textarea[name="addressText"]'),
+              select('textarea[name="customerNote"]'),
+              select('button[type="submit"]'),
+            ];
+            const available = document.documentElement.clientWidth;
+            const rect = (element) => {
+              if (!element) return null;
+              const box = element.getBoundingClientRect();
+              return {
+                left: Math.round(box.left),
+                right: Math.round(box.right),
+                width: Math.round(box.width),
+                height: Math.round(box.height),
+              };
+            };
+            return {
+              available,
+              pageScrollWidth: document.documentElement.scrollWidth,
+              bodyScrollWidth: document.body.scrollWidth,
+              dialog: rect(dialog),
+              controls: inputs.map(rect),
+            };
+          });
+
+          assert.equal(stats.available, size.width);
+          assert.ok(stats.pageScrollWidth <= size.width + 1,
+            size.width + "px: document overflow " + JSON.stringify(stats));
+          assert.ok(stats.bodyScrollWidth <= size.width + 1,
+            size.width + "px: body overflow " + JSON.stringify(stats));
+          assert.ok(stats.dialog && stats.dialog.left >= -1 &&
+            stats.dialog.right <= size.width + 1,
+            size.width + "px: checkout dialog is clipped " + JSON.stringify(stats));
+          assert.equal(stats.controls.length, 5);
+          for (const control of stats.controls) {
+            assert.ok(control && control.width >= 100 && control.height >= 24 &&
+              control.left >= -1 && control.right <= size.width + 1,
+              size.width + "px: checkout input is clipped " + JSON.stringify(stats));
+          }
+          assert.equal(await dialog.locator('input[name="customerName"]').inputValue(),
+            "Mobile CI Test");
+          assert.equal(await dialog.locator('textarea[name="addressText"]').inputValue(),
+            "CI Test Street 20");
+
+          // Dismiss checkout without writing anything to PostgreSQL.
+          await dialog.getByRole("button", { name: "Bağla" }).click();
+          await dialog.waitFor({ state: "hidden" });
+          assert.equal(await db.order.count({
+            where: { restaurantId: restaurantA.id, customerName: "Mobile CI Test" },
+          }), 0);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  });
 });
