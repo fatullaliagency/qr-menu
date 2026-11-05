@@ -4,22 +4,38 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { makeTrackingToken } from "@/app/lib/order-tracking";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
+import {
+  isMatchingCashOrder,
+  isValidOrderAttemptId,
+  type CashOrderDraft,
+} from "@/app/lib/order-idempotency";
 
-type CartLine = { itemId: string; quantity: number };
-type CashOrderInput = {
-  slug: string;
-  customerName: string;
-  customerPhone: string;
-  addressText: string;
-  customerNote: string;
-  items: CartLine[];
+type CashOrderInput = CashOrderDraft & {
+  requestId: string;
 };
+
+const REPLAY_SELECT = {
+  restaurantId: true,
+  customerName: true,
+  customerPhone: true,
+  addressText: true,
+  customerNote: true,
+  items: { select: { menuItemId: true, quantity: true } },
+} as const;
 type Result =
   | { success: true; url: string }
   | { success: false; message: string };
 
 function failure(message: string): Result {
   return { success: false, message };
+}
+
+function trackingResult(orderId: string): Result {
+  const token = makeTrackingToken(orderId);
+  return {
+    success: true,
+    url: "/order/track/" + encodeURIComponent(orderId) + "?t=" + encodeURIComponent(token),
+  };
 }
 
 export async function createCashOrder(input: CashOrderInput): Promise<Result> {
@@ -30,6 +46,11 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
 
   if (!input || typeof input !== "object") {
     return failure("Sifariş məlumatları düzgün deyil.");
+  }
+
+  const requestId = input.requestId;
+  if (!isValidOrderAttemptId(requestId)) {
+    return failure("Sifariş sorğusunun identifikatoru yanlışdır.");
   }
 
   const slug = typeof input.slug === "string" ? input.slug.trim() : "";
@@ -79,12 +100,36 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
     return failure("Sifariş xidməti müvəqqəti əlçatan deyil.");
   }
 
+  // This ID must stay the same across retries of one checkout attempt.
+  // Order.id already has a database UNIQUE/PRIMARY KEY constraint; a race
+  // between two instances cannot insert two records with the same requestId.
+  let validatedRestaurantId: string | null = null;
+  const draft: CashOrderDraft = { slug, customerName: name, customerPhone: phone,
+    addressText: address, customerNote: note, items: input.items };
+
+  const replay = async (restaurantId: string): Promise<Result | null> => {
+    const previous = await db.order.findUnique({
+      where: { id: requestId },
+      select: REPLAY_SELECT,
+    });
+    if (!previous) return null;
+    return isMatchingCashOrder(previous, restaurantId, draft)
+      ? trackingResult(requestId)
+      : failure("Bu sifariş açarı başqa məlumatla istifadə edilib. Yeni səbət yaradın.");
+  };
+
   try {
     const restaurant = await db.restaurant.findUnique({
       where: { slug },
       select: { id: true },
     });
     if (!restaurant) return failure("Restoran tapılmadı.");
+    validatedRestaurantId = restaurant.id;
+
+    // Check a completed attempt BEFORE reading live menu prices. A retry
+    // should still resolve if a product has since been edited or removed.
+    const previouslyCreated = await replay(restaurant.id);
+    if (previouslyCreated) return previouslyCreated;
 
     const products = await db.menuItem.findMany({
       where: { restaurantId: restaurant.id, id: { in: [...ids] } },
@@ -132,6 +177,7 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
 
     const order = await db.order.create({
       data: {
+        id: requestId,
         restaurantId: restaurant.id,
         customerName: name,
         customerPhone: phone,
@@ -162,16 +208,18 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
       select: { id: true },
     });
 
-    const token = makeTrackingToken(order.id);
-    return {
-      success: true,
-      url:
-        "/order/track/" +
-        encodeURIComponent(order.id) +
-        "?t=" +
-        encodeURIComponent(token),
-    };
+    return trackingResult(order.id);
   } catch {
-    return failure("Sifariş yaradılmadı. Bir az sonra yenidən cəhd edin.");
+    if (validatedRestaurantId) {
+      try {
+        // Covers concurrent P2002 inserts AND ambiguous errors after a
+        // transaction committed but its success response was lost.
+        const previouslyCreated = await replay(validatedRestaurantId);
+        if (previouslyCreated) return previouslyCreated;
+      } catch {
+        // Avoid claiming a request failed or succeeded without evidence.
+      }
+    }
+    return failure("Sifarişin nəticəsi təsdiqlənmədi. Məlumatları dəyişmədən yenidən cəhd edin.");
   }
 }

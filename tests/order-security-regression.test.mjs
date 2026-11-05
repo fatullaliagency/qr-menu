@@ -130,6 +130,11 @@ test("Customer order server checks restaurant ownership and server-calculated pr
   assert.match(customerOrders, /restaurantId: restaurant\.id/);
   assert.match(customerOrders, /paymentMethod: "CASH"/);
   assert.match(customerOrders, /paymentStatus: "PENDING"/);
+  assert.match(customerOrders, /isValidOrderAttemptId\(requestId\)/);
+  assert.match(customerOrders, /id: requestId,\s*restaurantId: restaurant\.id/);
+  assert.match(customerOrders, /await replay\(restaurant\.id\)/);
+  assert.match(customerOrders, /await replay\(validatedRestaurantId\)/);
+  assert.match(customerOrders, /isMatchingCashOrder\(previous, restaurantId, draft\)/);
 });
 
 test("Customer tracking checks a signed token before any database query", () => {

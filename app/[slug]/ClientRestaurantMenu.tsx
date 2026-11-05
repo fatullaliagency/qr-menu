@@ -2,6 +2,8 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { createCashOrder } from "./order-actions";
+import { prepareCashOrderAttempt, clearCashOrderAttempt, type PendingCashOrderAttempt } from "@/app/lib/order-attempt-client";
+import type { CashOrderDraft } from "@/app/lib/order-idempotency";
 import {
   addCartItem,
   canAddCartItem,
@@ -14,6 +16,7 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const pendingAttemptRef = useRef<PendingCashOrderAttempt | null>(null);
   const [checkoutError, setCheckoutError] = useState("");
   const [copied, setCopied] = useState<string>("");
   const [activeCat, setActiveCat] = useState<string>("all");
@@ -64,23 +67,30 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
     setSubmitting(true);
     setCheckoutError("");
     const formData = new FormData(event.currentTarget);
+    const draft: CashOrderDraft = {
+      slug: restaurant.slug,
+      customerName: String(formData.get("customerName") ?? ""),
+      customerPhone: String(formData.get("customerPhone") ?? ""),
+      addressText: String(formData.get("addressText") ?? ""),
+      customerNote: String(formData.get("customerNote") ?? ""),
+      items: cart.map(({ item, quantity }) => ({ itemId: item.id, quantity })),
+    };
     let navigating = false;
     try {
-      const result = await createCashOrder({
-        slug: restaurant.slug,
-        customerName: String(formData.get("customerName") ?? ""),
-        customerPhone: String(formData.get("customerPhone") ?? ""),
-        addressText: String(formData.get("addressText") ?? ""),
-        customerNote: String(formData.get("customerNote") ?? ""),
-        items: cart.map(({ item, quantity }) => ({
-          itemId: item.id,
-          quantity,
-        })),
-      });
+      let storage: Storage | null = null;
+      try { storage = window.sessionStorage; } catch { /* Storage may be disabled. */ }
+      const attempt = await prepareCashOrderAttempt(
+        draft, storage, window.crypto, pendingAttemptRef.current
+      );
+      pendingAttemptRef.current = attempt;
+      const result = await createCashOrder({ ...draft, requestId: attempt.requestId });
       if (result.success) {
-        // Keep the lock while the browser navigates to the tracking page.
-        navigating = true;
+        // Navigation is initiated first, so a blocked navigation still leaves
+        // the attempt key for recovery instead of creating another order.
         window.location.assign(result.url);
+        clearCashOrderAttempt(draft.slug, attempt.requestId, storage);
+        pendingAttemptRef.current = null;
+        navigating = true;
       } else {
         setCheckoutError(result.message);
       }
