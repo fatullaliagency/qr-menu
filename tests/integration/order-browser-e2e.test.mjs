@@ -202,7 +202,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     assert.equal(apiStatus.statusCode, 200);
     assert.equal(apiStatus.body.status, "CONFIRMED");
     try {
-      await customer.locator("p.font-semibold").filter({ hasText: "Təsdiqləndi" })
+      await customer.locator("p.font-semibold").filter({ hasText: "Restoran təsdiqlədi" })
         .waitFor({ timeout: 20_000 });
     } catch (error) {
       const state = await customer.evaluate(() => document.visibilityState);
