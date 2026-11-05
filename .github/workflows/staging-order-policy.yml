@@ -14,6 +14,21 @@ permissions:
 jobs:
   policy-tests:
     runs-on: ubuntu-latest
+    # Disposable PostgreSQL database, isolated from both staging and production.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: qr_menu_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d qr_menu_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,3 +37,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:orders
+      - name: Generate Prisma Client for disposable database tests
+        run: npx prisma generate
+      - name: Create schema in disposable CI database only
+        run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_menu_ci
+          QR_MENU_EPHEMERAL_DB_TEST: "true"
+      - name: Test order uniqueness and tenant isolation against PostgreSQL
+        run: npm run test:orders:db
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_menu_ci
+          QR_MENU_EPHEMERAL_DB_TEST: "true"
