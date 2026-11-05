@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { createCashOrder } from "./order-actions";
+import {
+  addCartItem,
+  canAddCartItem,
+  MAX_CART_DISTINCT_ITEMS,
+  MAX_QUANTITY_PER_ITEM,
+} from "@/app/lib/cart-policy";
 
 export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = false }: { restaurant: any; webOrdersEnabled?: boolean }) {
   const [cart, setCart] = useState<{ item: any; quantity: number }[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [copied, setCopied] = useState<string>("");
   const [activeCat, setActiveCat] = useState<string>("all");
@@ -34,13 +41,8 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
   };
 
   const addToCart = (item: any) => {
-    setCart((prev) => {
-      const ex = prev.find((i) => i.item.id === item.id);
-      if (ex) {
-        return prev.map((i) => (i.item.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
-      }
-      return [...prev, { item, quantity: 1 }];
-    });
+    // Clamp every click against the same limits enforced by createCashOrder.
+    setCart((prev) => addCartItem(prev, item));
   };
 
   const removeFromCart = (id: string) => {
@@ -56,10 +58,13 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
 
   const submitOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cart.length === 0 || !webOrdersEnabled) return;
+    // React state may not have updated yet during a second rapid submit.
+    if (submittingRef.current || cart.length === 0 || !webOrdersEnabled) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setCheckoutError("");
     const formData = new FormData(event.currentTarget);
+    let navigating = false;
     try {
       const result = await createCashOrder({
         slug: restaurant.slug,
@@ -73,14 +78,20 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
         })),
       });
       if (result.success) {
+        // Keep the lock while the browser navigates to the tracking page.
+        navigating = true;
         window.location.assign(result.url);
       } else {
         setCheckoutError(result.message);
       }
     } catch {
+      navigating = false;
       setCheckoutError("Sifariş göndərilmədi. Yenidən cəhd edin.");
     } finally {
-      setSubmitting(false);
+      if (!navigating) {
+        submittingRef.current = false;
+        setSubmitting(false);
+      }
     }
   };
 
@@ -232,8 +243,12 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => addToCart(item)}
-                    className="w-9 h-9 rounded-full bg-[#d4af37] text-black font-bold text-lg flex items-center justify-center shrink-0"
+                    disabled={!canAddCartItem(cart, item.id)}
+                    aria-label={canAddCartItem(cart, item.id) ? item.name + " — səbətə əlavə et" : item.name + " — səbət limiti dolub"}
+                    title={canAddCartItem(cart, item.id) ? "Səbətə əlavə et" : "Səbət limiti dolub"}
+                    className="w-9 h-9 rounded-full bg-[#d4af37] text-black font-bold text-lg flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     +
                   </button>
@@ -275,6 +290,13 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
               </div>
             </div>
           </div>
+          {(cart.length >= MAX_CART_DISTINCT_ITEMS ||
+            cart.some((entry) => entry.quantity >= MAX_QUANTITY_PER_ITEM)) && (
+            <p role="status" className="mx-auto mt-2 max-w-4xl text-xs text-amber-200">
+              Səbət limiti: maksimum {MAX_CART_DISTINCT_ITEMS} fərqli məhsul,
+              hər məhsuldan {MAX_QUANTITY_PER_ITEM} ədəd.
+            </p>
+          )}
         </div>
       )}
 
