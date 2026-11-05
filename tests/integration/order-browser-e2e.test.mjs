@@ -175,8 +175,20 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       has: admin.getByRole("heading", { name: "Sifariş #" + orderId.slice(-8) }),
     });
     await article.getByRole("button", { name: /Sifarişi təsdiqlə/ }).click();
-    await admin.getByText("Sifariş təsdiqləndi.", { exact: true })
-      .waitFor({ timeout: 25_000 });
+    // The success notice also contains a dismiss link. Its whole element's
+    // text is not an exact match for the standalone notice string.
+    try {
+      await admin.getByRole("status").filter({ hasText: "Sifariş təsdiqləndi." })
+        .waitFor({ timeout: 25_000 });
+    } catch (error) {
+      const actual = await db.order.findUnique({
+        where: { id: orderId }, select: { status: true },
+      });
+      throw new Error(
+        "Confirmation notice missing; DB status=" + actual?.status +
+        " browser URL=" + admin.url() + "; " + String(error)
+      );
+    }
     const order = await db.order.findUnique({ where: { id: orderId }, select: { status: true } });
     assert.equal(order?.status, "CONFIRMED");
     await customer.locator("p.font-semibold").filter({ hasText: "Təsdiqləndi" })
