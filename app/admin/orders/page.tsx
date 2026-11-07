@@ -73,7 +73,8 @@ const STATUS_BUTTON_LABELS: Record<OrderStatus, string> = {
 };
 
 // Tel-URL yalnız rəqəmlərdən (və başlanğıc + işarəsindən) ibarətdir.
-function safeTelHref(phone: string): string | null {
+function safeTelHref(phone: string | null): string | null {
+  if (!phone) return null;
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 7 || digits.length > 15) return null;
   return "tel:" + (phone.trim().startsWith("+") ? "+" : "") + digits;
@@ -689,7 +690,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <p>
-                <strong>Telefon:</strong> {order.customerPhone}
+                <strong>Telefon:</strong> {order.customerPhone || "Qeyd edilməyib"}
               </p>
               {safeTelHref(order.customerPhone) && (
                 <a

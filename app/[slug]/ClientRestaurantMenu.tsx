@@ -399,10 +399,10 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                 />
               </label>
               <label className="block text-sm">
-                Telefon
+                {fulfillmentType === "DINE_IN" ? "Telefon (istəyə bağlı)" : "Telefon"}
                 <input
                   name="customerPhone"
-                  required
+                  required={fulfillmentType !== "DINE_IN"}
                   type="tel"
                   maxLength={25}
                   autoComplete="tel"

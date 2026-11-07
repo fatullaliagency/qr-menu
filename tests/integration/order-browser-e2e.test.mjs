@@ -744,7 +744,15 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
           assert.equal(await page.locator('select[name="tableNumber"]').count(), 0);
         }
         await page.locator('input[name="customerName"]').fill(label);
-        await page.locator('input[name="customerPhone"]').fill("+994501234567");
+        const phoneInput = page.locator('input[name="customerPhone"]');
+        if (type === "DINE_IN") {
+          assert.equal(await phoneInput.getAttribute("required"), null);
+          assert.equal(await phoneInput.inputValue(), "");
+          // Real no-phone submission: restaurant should identify this by table number.
+        } else {
+          assert.notEqual(await phoneInput.getAttribute("required"), null);
+          await phoneInput.fill("+994501234567");
+        }
         await page.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
         await page.waitForURL(/\/order\/track\/[^/]+\?t=[a-f0-9]{64}/, { timeout: 30_000 });
         const id = decodeURIComponent(page.url().match(/\/order\/track\/([^?]+)/)[1]);
@@ -752,6 +760,7 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
         assert.equal(order.restaurantId, restaurantA.id);
         assert.equal(order.fulfillmentType, type);
         assert.equal(order.tableNumber, tableNumber);
+        assert.equal(order.customerPhone, type === "DINE_IN" ? null : "+994501234567");
         assert.equal(order.addressText, null);
         await page.getByRole("heading", { name: "Sifarişimi izlə" }).waitFor();
         assert.match(await page.locator("main").last().innerText(), new RegExp(type === "DINE_IN" ? "Masa " + tableNumber : "Al-apar"));

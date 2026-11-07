@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isFulfillmentType,
   orderDestinationLabel,
+  isValidCustomerPhone,
   validateOrderDestination,
 } from "../app/lib/fulfillment.ts";
 import {
@@ -21,6 +22,18 @@ test("One restaurant QR supports three explicitly distinct destinations", () => 
   assert.equal(orderDestinationLabel("DINE_IN", 7), "Masa 7");
   assert.equal(orderDestinationLabel("DELIVERY", null), "Çatdırılma");
   assert.equal(orderDestinationLabel("PICKUP", null), "Al-apar");
+});
+
+test("Phone is optional only for dine-in, and invalid supplied numbers are rejected", () => {
+  assert.equal(isValidCustomerPhone("", "DINE_IN"), true);
+  assert.equal(isValidCustomerPhone("", "DELIVERY"), false);
+  assert.equal(isValidCustomerPhone("", "PICKUP"), false);
+  assert.equal(isValidCustomerPhone("+994501234567", "DINE_IN"), true);
+  assert.equal(isValidCustomerPhone("+994501234567", "DELIVERY"), true);
+  assert.equal(isValidCustomerPhone("+994501234567", "PICKUP"), true);
+  assert.equal(isValidCustomerPhone("abc", "DINE_IN"), false);
+  assert.equal(isValidCustomerPhone("123", "DINE_IN"), false);
+  assert.equal(isValidCustomerPhone("invalid! phone", "DINE_IN"), false);
 });
 
 test("Dine-in only accepts enabled, in-range restaurant tables and no address", () => {
@@ -55,6 +68,16 @@ const stored = {
   fulfillmentType: "DINE_IN", tableNumber: 7, addressText: null, customerNote: null,
   items: [{ menuItemId: "item-identifier", quantity: 1 }],
 };
+test("Dine-in without phone is matched securely to nullable stored phone", () => {
+  const draft = { ...base, customerPhone: "", fulfillmentType: "DINE_IN", tableNumber: 7 };
+  const existing = { ...stored, customerPhone: null };
+  assert.equal(isMatchingCashOrder(existing, "restaurant-a", draft), true);
+  assert.equal(isMatchingCashOrder(existing, "restaurant-b", draft), false);
+  assert.equal(isMatchingCashOrder(existing, "restaurant-a", { ...draft, customerPhone: "+994501234567" }), false);
+  assert.notEqual(canonicalCashOrderDraft(draft),
+    canonicalCashOrderDraft({ ...draft, customerPhone: "+994501234567" }));
+});
+
 test("Idempotency request key changes when type/table changes; another table cannot replay", () => {
   const dine = { ...base, fulfillmentType: "DINE_IN", tableNumber: 7 };
   assert.equal(isMatchingCashOrder(stored, "restaurant-a", dine), true);

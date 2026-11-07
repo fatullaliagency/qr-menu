@@ -103,7 +103,7 @@ model Order {
   restaurant Restaurant @relation(fields: [restaurantId], references: [id])
 
   customerName String
-  customerPhone String
+  customerPhone String?
 
   fulfillmentType OrderFulfillmentType @default(DELIVERY)
   tableNumber Int?

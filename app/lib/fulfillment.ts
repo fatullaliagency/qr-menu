@@ -16,6 +16,14 @@ export function orderDestinationLabel(type: FulfillmentType, tableNumber: number
   return FULFILLMENT_LABELS[type];
 }
 
+/** Phone contact is optional only for table service; if supplied, it must be valid. */
+export function isValidCustomerPhone(phone: string, type: FulfillmentType): boolean {
+  if (phone === "" && type === "DINE_IN") return true;
+  return /^[+0-9()\s-]{7,25}$/.test(phone) &&
+    phone.replace(/\D/g, "").length >= 7 &&
+    phone.replace(/\D/g, "").length <= 15;
+}
+
 export type FulfillmentSettings = {
   tableCount: number;
   dineInEnabled: boolean;

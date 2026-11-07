@@ -20,7 +20,7 @@ export type CashOrderDraft = {
 export type StoredCashOrder = {
   restaurantId: string;
   customerName: string;
-  customerPhone: string;
+  customerPhone: string | null;
   addressText: string | null;
   fulfillmentType?: FulfillmentType;
   tableNumber?: number | null;
@@ -56,7 +56,7 @@ export function isMatchingCashOrder(
   if (
     existing.restaurantId !== restaurantId ||
     existing.customerName !== draft.customerName.trim() ||
-    existing.customerPhone !== draft.customerPhone.trim() ||
+    (existing.customerPhone ?? "") !== draft.customerPhone.trim() ||
     (existing.addressText ?? "") !== draft.addressText.trim() ||
     (existing.fulfillmentType ?? "DELIVERY") !== (draft.fulfillmentType ?? "DELIVERY") ||
     (existing.tableNumber ?? null) !== ((draft.fulfillmentType ?? "DELIVERY") === "DINE_IN" ? (draft.tableNumber ?? null) : null) ||

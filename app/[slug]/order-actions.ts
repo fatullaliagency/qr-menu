@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { makeTrackingToken } from "@/app/lib/order-tracking";
-import { isFulfillmentType, validateOrderDestination } from "@/app/lib/fulfillment";
+import { isFulfillmentType, isValidCustomerPhone, validateOrderDestination } from "@/app/lib/fulfillment";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 import {
   isMatchingCashOrder,
@@ -72,9 +72,7 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
   if (
     !/^[a-z0-9-]{2,120}$/.test(slug) ||
     name.length < 2 || name.length > 100 ||
-    !/^[+0-9()\s-]{7,25}$/.test(phone) ||
-    phone.replace(/\D/g, "").length < 7 ||
-    phone.replace(/\D/g, "").length > 15 ||
+    !isValidCustomerPhone(phone, requestedType) ||
     address.length > 300 ||
     note.length > 500 ||
     !Array.isArray(input.items) ||
@@ -189,7 +187,7 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
         id: requestId,
         restaurantId: restaurant.id,
         customerName: name,
-        customerPhone: phone,
+        customerPhone: phone || null,
         fulfillmentType: requestedType,
         tableNumber: requestedType === "DINE_IN" ? tableNumber : null,
         addressText: address || null,
