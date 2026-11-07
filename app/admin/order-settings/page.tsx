@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -42,11 +43,19 @@ async function saveFulfillmentSettings(formData: FormData) {
   redirect("/admin/order-settings?saved=1");
 }
 
-export default async function OrderSettingsPage({
-  searchParams,
-}: {
+type OrderSettingsProps = {
   searchParams: Promise<{ saved?: string | string[] }>;
-}) {
+};
+
+export default function OrderSettingsPage(props: OrderSettingsProps) {
+  return (
+    <Suspense fallback={<main className="p-8">Sifariş parametrləri yüklənir...</main>}>
+      <OrderSettingsContent {...props} />
+    </Suspense>
+  );
+}
+
+async function OrderSettingsContent({ searchParams }: OrderSettingsProps) {
   const session = await getAdminSession();
   if (!session) {
     return <main className="p-8"><h1>Giriş tələb olunur</h1>
