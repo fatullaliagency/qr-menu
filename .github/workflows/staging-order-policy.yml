@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
+      - run: npm install
       - run: npm run test:orders
       - name: Generate Prisma Client for disposable database tests
         run: npx prisma generate

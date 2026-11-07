@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  inspectMenuVideo, parseMenuVideoFile, MAX_MENU_VIDEO_BYTES,
+  inspectMenuVideo, parseMenuVideoFile, MAX_MENU_VIDEO_BYTES, encodeVideoBlob, decodeVideoBlob, isVideoBlobUrl,
 } from "../app/lib/menu-video.ts";
 import { parseVideoRange } from "../app/lib/video-range.ts";
 
@@ -49,4 +49,23 @@ test("HTTP byte range supports playback, seeking, suffix and invalid ranges", ()
   for (const bad of ["bytes=20-", "bytes=9-4", "bytes=0-1,3-4", "bytes=-0", "items=0-", "bytes=-", "bytes=NaN-", "bytes=0-1abc"]) {
     assert.equal(parseVideoRange(bad, 20), "invalid", bad);
   }
+});
+
+test("accepts 10 MiB and rejects larger videos", () => {
+  assert.equal(MAX_MENU_VIDEO_BYTES, 10485760);
+  const valid = new Uint8Array(MAX_MENU_VIDEO_BYTES); valid.set(mp4);
+  assert.equal(inspectMenuVideo("video/mp4", valid), null);
+  assert.notEqual(inspectMenuVideo("video/mp4", new Uint8Array(MAX_MENU_VIDEO_BYTES + 1)), null);
+});
+test("Blob references are small and prevent other hosts and tenants", () => {
+  const id = "clabcdefgh1234567890";
+  const url = "https://abc.public.blob.vercel-storage.com/menu-videos/" + id + "/clip-12345.mp4";
+  assert.equal(isVideoBlobUrl(url, id), true);
+  assert.equal(isVideoBlobUrl(url, "clother123456789012"), false);
+  assert.equal(isVideoBlobUrl("https://evil.example.com/menu-videos/" + id + "/clip.mp4"), false);
+  const value = encodeVideoBlob(url, "video/mp4", MAX_MENU_VIDEO_BYTES);
+  assert.ok(value.payload.length < 1024);
+  assert.equal(decodeVideoBlob(value.payload), url);
+  assert.equal(decodeVideoBlob(mp4), null);
+  assert.throws(() => encodeVideoBlob(url, "video/mp4", MAX_MENU_VIDEO_BYTES + 1));
 });

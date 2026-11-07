@@ -7,6 +7,7 @@ import AdminPinGuard from "./AdminPinGuard";
 import ImagePickerInput from "./ImagePickerInput";
 import VideoPickerInput from "./VideoPickerInput";
 import { parseMenuVideoFile } from "@/app/lib/menu-video";
+import { verifyUploadedVideo } from "@/app/lib/menu-video-blob";
 import QrCodeBox from "./QrCodeBox";
 
 type PageProps = {
@@ -153,7 +154,7 @@ async function addMenuItem(fd: FormData) {
   });
   if (!category) throw new Error("Kateqoriya bu restorana aid deyil.");
   const description = readText(fd, "description");
-  const video = await parseMenuVideoFile(fd.get("videoFile"));
+  const video = await verifyUploadedVideo(fd.get("videoBlobUrl"), restaurant.id) ?? await parseMenuVideoFile(fd.get("videoFile"));
   await db.menuItem.create({
     data: {
       name: readRequired(fd, "name"),
@@ -173,7 +174,7 @@ async function editMenuItem(fd: FormData) {
   const restaurant = await authorizedRestaurant(fd);
   const id = readRequired(fd, "id", 150);
   const description = readText(fd, "description");
-  const video = await parseMenuVideoFile(fd.get("videoFile"));
+  const video = await verifyUploadedVideo(fd.get("videoBlobUrl"), restaurant.id) ?? await parseMenuVideoFile(fd.get("videoFile"));
   const removeVideo = fd.get("removeVideo") === "1";
   const changes = {
     name: readRequired(fd, "name"),
@@ -381,7 +382,7 @@ async function AdminContent({ searchParams }: PageProps) {
               <input type="number" name="price" required min="0" max="999999.99" step="0.01" placeholder="Qiymət (₼)" className={inputClass} />
               <input name="description" placeholder="Tərkibi / açıqlama" className={inputClass} />
               <ImagePickerInput name="imageUrl" label="Məhsulun şəkli" />
-              <VideoPickerInput />
+              <VideoPickerInput restaurantId={restaurant.id} />
               <button type="submit" className="w-full rounded-xl bg-zinc-900 py-2.5 font-bold text-white hover:bg-zinc-800">
                 Məhsulu menyuya əlavə et
               </button>
@@ -439,7 +440,7 @@ async function AdminContent({ searchParams }: PageProps) {
                         <input name="description" defaultValue={item.description ?? ""} placeholder="Tərkibi" className={inputClass} />
                       </div>
                       <ImagePickerInput name="imageUrl" label="Yeni şəkil seç" defaultValue={item.imageUrl ?? ""} />
-                      <VideoPickerInput defaultUrl={item.video
+                      <VideoPickerInput restaurantId={restaurant.id} defaultUrl={item.video
                         ? "/api/menu-video/" + encodeURIComponent(item.id) + "?v=" + item.video.updatedAt.getTime()
                         : ""} />
                       <button type="submit" className="w-full rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700">💾 Yadda saxla</button>

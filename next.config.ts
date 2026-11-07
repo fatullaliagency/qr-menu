@@ -4,8 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
     agentFeedback: true,
-    // Short menu videos are sent as multipart Server Actions (2.5MiB max video).
-    // Stay below the platform's 4.5MB request limit, including images/form fields.
+    // New 10 MiB videos upload directly to Blob, bypassing the 4.5 MB request cap.
+    // Keep multipart Server Actions under the platform request limit.
     serverActions: { bodySizeLimit: "4mb" },
   },
   cacheComponents: true,

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { db } from "@/app/lib/db";
 import { parseVideoRange } from "@/app/lib/video-range";
+import { decodeVideoBlob } from "@/app/lib/menu-video";
 
 type Props = { params: Promise<{ itemId: string }> };
 
@@ -22,8 +23,13 @@ export async function GET(request: NextRequest, { params }: Props): Promise<Resp
     where: { menuItemId: itemId },
     select: { mimeType: true, payload: true, sizeBytes: true },
   });
-  if (!video || !["video/mp4", "video/webm"].includes(video.mimeType) ||
-    video.payload.byteLength !== video.sizeBytes) return notFoundVideo();
+  if (!video || !["video/mp4", "video/webm"].includes(video.mimeType)) return notFoundVideo();
+  const blobUrl = decodeVideoBlob(video.payload);
+  if (blobUrl) {
+    if (video.sizeBytes < 12 || video.sizeBytes > 10 * 1024 * 1024) return notFoundVideo();
+    return new Response(null, { status: 307, headers: { Location: blobUrl, "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" } });
+  }
+  if (video.payload.byteLength !== video.sizeBytes) return notFoundVideo();
 
   const total = video.payload.byteLength;
   const parsed = parseVideoRange(request.headers.get("range"), total);
@@ -43,7 +49,7 @@ export async function GET(request: NextRequest, { params }: Props): Promise<Resp
   const data = Uint8Array.from(video.payload.subarray(start, end + 1));
   headers.set("Content-Length", String(data.byteLength));
   if (parsed) headers.set("Content-Range", "bytes " + start + "-" + end + "/" + total);
-  // The bytes are intentionally limited to 2.5MiB, safely below Vercel's response cap.
+  // Inline legacy clips remain small; new videos are redirected to the Blob CDN.
   return new Response(data.buffer as ArrayBuffer, { status: parsed ? 206 : 200, headers });
 }
 
