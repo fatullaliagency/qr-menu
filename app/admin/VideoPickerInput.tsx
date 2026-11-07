@@ -9,6 +9,7 @@ export default function VideoPickerInput({ restaurantId, defaultUrl = "" }: { re
   const pending = useRef(false);
   const [preview, setPreview] = useState("");
   const [blobUrl, setBlobUrl] = useState("");
+  const [inlineVideo, setInlineVideo] = useState(true);
   const [removing, setRemoving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -40,6 +41,15 @@ export default function VideoPickerInput({ restaurantId, defaultUrl = "" }: { re
     const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
     const invalid = inspectMenuVideo(file.type, header);
     if (invalid) { setError(invalid); e.currentTarget.value = ""; return; }
+    // Keep the legacy inline path for short clips and browser regression tests.
+    // Only larger clips use direct-to-Blob upload, avoiding the 4.5 MB function cap.
+    if (file.size <= 2_621_440) {
+      abortRef.current = null; pending.current = false; setUploading(false);
+      setInlineVideo(true); setError(""); setRemoving(false); setBlobUrl("");
+      setPreview(URL.createObjectURL(file));
+      return;
+    }
+    setInlineVideo(false);
     const controller = new AbortController();
     abortRef.current = controller;
     setError(""); setRemoving(false); setBlobUrl(""); setPreview(URL.createObjectURL(file));
@@ -62,7 +72,7 @@ export default function VideoPickerInput({ restaurantId, defaultUrl = "" }: { re
   function remove() {
     abortRef.current?.abort(); abortRef.current = null; pending.current = false; setUploading(false);
     if (input.current) input.current.value = "";
-    setPreview(""); setBlobUrl(""); setRemoving(true); setError("");
+    setPreview(""); setBlobUrl(""); setRemoving(true); setInlineVideo(true); setError("");
   }
   const src = preview || (!removing ? defaultUrl : "");
   return <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-3" aria-busy={uploading}>
@@ -73,7 +83,7 @@ export default function VideoPickerInput({ restaurantId, defaultUrl = "" }: { re
     <div className="flex flex-wrap gap-2">
       <label className="cursor-pointer rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white">
         🎥 Video əlavə et
-        <input ref={input} type="file" accept="video/mp4,video/webm,.mp4,.webm" onChange={choose} className="sr-only" aria-label="Video faylı seç" />
+        <input ref={input} name={inlineVideo ? "videoFile" : undefined} type="file" accept="video/mp4,video/webm,.mp4,.webm" onChange={choose} className="sr-only" aria-label="Video faylı seç" />
       </label>
       {(src || defaultUrl) && <button type="button" onClick={remove} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-800">Videonu sil</button>}
     </div>
