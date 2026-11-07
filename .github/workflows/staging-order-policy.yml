@@ -43,7 +43,9 @@ jobs:
       - run: npm run test:orders
       - name: Generate Prisma Client for disposable database tests
         run: npx prisma generate
-      - name: Create schema in disposable CI database only
+      - name: Apply tracked SQL migrations in disposable CI database only
+        run: npx prisma migrate deploy
+      - name: Verify Prisma schema matches applied migrations in disposable CI
         run: npx prisma db push --skip-generate
       - name: Test order uniqueness and tenant isolation against PostgreSQL
         run: npm run test:orders:db
