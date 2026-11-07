@@ -172,6 +172,37 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       .waitFor({ timeout: 20_000 });
   });
 
+  await t.test("Courier WhatsApp sharing of a delivery without GPS pin waits for operator click", async () => {
+    const article = admin.locator("article").filter({
+      has: admin.getByRole("heading", { name: "Sifariş #" + orderId.slice(-8) }),
+    });
+    await admin.evaluate(() => {
+      window.__courierShareLinks = [];
+      window.open = (url, target, features) => {
+        window.__courierShareLinks.push({ url, target, features });
+        return null;
+      };
+    });
+    // No automatic third-party sharing just by viewing the order.
+    assert.equal(await admin.evaluate(() => window.__courierShareLinks.length), 0);
+    await article.getByRole("button", { name: "Kuryerlə WhatsApp-da paylaş" }).click();
+    const shared = await admin.evaluate(() => window.__courierShareLinks.at(-1));
+    assert.equal(shared.target, "_blank");
+    assert.match(shared.features, /noopener/);
+    const url = new URL(shared.url);
+    assert.equal(url.hostname, "wa.me");
+    assert.equal(url.pathname, "/");
+    const message = url.searchParams.get("text");
+    assert.ok(message);
+    for (const value of [
+      restaurantA.name, "CI Browser Customer", "+994501234567",
+      "CI Browser Test Street 15", "CI Browser Test Dish", "7.45 ₼",
+      "Müştəri xəritədə məkan seçməyib",
+    ]) assert.ok(message.includes(value), "WhatsApp delivery message missing " + value);
+    assert.doesNotMatch(message, /\/order\/track\/|\?t=[a-f0-9]{64}|qr_admin_auth/);
+    assert.ok(!message.includes(restaurantB.name), "Do not share a different restaurant");
+  });
+
   await t.test("Restaurant confirmation reaches customer tracking screen", async () => {
     const article = admin.locator("article").filter({
       has: admin.getByRole("heading", { name: "Sifariş #" + orderId.slice(-8) }),
@@ -777,11 +808,13 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     await admin.goto(BASE + "/admin/orders?type=DINE_IN");
     await admin.getByRole("heading", { name: "Sifariş #" + tableId.slice(-8) }).waitFor();
     await admin.getByText("Masa 7", { exact: true }).waitFor();
+    assert.equal(await admin.getByRole("button", { name: "Kuryerlə WhatsApp-da paylaş" }).count(), 0);
     assert.equal(await admin.getByRole("heading", { name: "Sifariş #" + pickupId.slice(-8) }).count(), 0);
 
     await admin.goto(BASE + "/admin/orders?type=PICKUP");
     await admin.getByRole("heading", { name: "Sifariş #" + pickupId.slice(-8) }).waitFor();
     await admin.getByText("Al-apar", { exact: true }).last().waitFor();
+    assert.equal(await admin.getByRole("button", { name: "Kuryerlə WhatsApp-da paylaş" }).count(), 0);
 
     const activeCount = await db.order.count({
       where: { restaurantId: restaurantA.id, status: { in: ["NEW", "CONFIRMED", "PREPARING"] } },
@@ -842,6 +875,30 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       const [lat, lon] = url.searchParams.get("query").split(",").map(Number);
       assert.equal(lat, order.latitude);
       assert.equal(lon, order.longitude);
+
+      // The courier gets exactly the saved delivery location and customer details.
+      await admin.evaluate(() => {
+        window.__courierShareLinks = [];
+        window.open = (href, target) => {
+          window.__courierShareLinks.push({ url: href, target });
+          return null;
+        };
+      });
+      await admin.getByRole("button", { name: "Kuryerlə WhatsApp-da paylaş" }).click();
+      const shared = await admin.evaluate(() => window.__courierShareLinks.at(-1));
+      assert.equal(shared.target, "_blank");
+      const whatsapp = new URL(shared.url);
+      assert.equal(whatsapp.hostname, "wa.me");
+      const text = whatsapp.searchParams.get("text");
+      assert.ok(text.includes("CI Map Delivery Customer"));
+      assert.ok(text.includes("+994501234567"));
+      assert.ok(text.includes("Baku CI Map Building 5, entrance 2"));
+      assert.ok(text.includes("CI Browser Test Dish"));
+      assert.ok(text.includes("7.45 ₼"));
+      assert.ok(text.includes("https://www.google.com/maps/search/?api=1&query="));
+      assert.ok(text.includes(order.latitude.toFixed(6)));
+      assert.ok(text.includes(order.longitude.toFixed(6)));
+      assert.doesNotMatch(text, /\/order\/track\/|\?t=[a-f0-9]{64}/);
     } finally {
       await ctx.close();
     }

@@ -13,6 +13,7 @@ import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
 import OrderSubmitButton from "./OrderSubmitButton";
 import CopyKitchenOrderButton from "./CopyKitchenOrderButton";
+import CourierWhatsAppButton from "./CourierWhatsAppButton";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 import { writeOrderStatus, writeCashReceipt } from "@/app/lib/order-write-service";
 import {
@@ -715,6 +716,27 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                     📍 Müştərinin göndərdiyi məkanı xəritədə aç
                   </a>
                 )}
+                <CourierWhatsAppButton details={{
+                  restaurantName: restaurant.name,
+                  orderReference: order.id.slice(-8),
+                  orderedAt: order.createdAt.toLocaleString("az-AZ", { timeZone: "Asia/Baku" }),
+                  customerName: order.customerName,
+                  customerPhone: order.customerPhone,
+                  addressText: order.addressText,
+                  latitude: order.latitude,
+                  longitude: order.longitude,
+                  customerNote: order.customerNote,
+                  items: order.items.map((item) => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    lineTotal: item.lineTotal.toFixed(2),
+                  })),
+                  subtotal: order.subtotal.toFixed(2),
+                  deliveryFee: order.deliveryFee.toFixed(2),
+                  total: order.total.toFixed(2),
+                  paymentMethod: METHOD_LABELS[order.paymentMethod],
+                  paymentStatus: PAYMENT_LABELS[order.paymentStatus],
+                }} />
               </div>
             )}
 

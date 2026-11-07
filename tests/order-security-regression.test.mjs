@@ -18,6 +18,7 @@ const notificationClient = source("app/admin/orders/OrdersAutoRefresh.tsx");
 const admin = source("app/admin/orders/page.tsx");
 const writes = source("app/lib/order-write-service.ts");
 const customerOrders = source("app/[slug]/order-actions.ts");
+const courierShare = source("app/admin/orders/CourierWhatsAppButton.tsx");
 const tracking = source("app/order/track/[id]/status/route.ts");
 const historyFlag = source("app/lib/order-status-history.ts");
 
@@ -148,4 +149,14 @@ test("Customer tracking checks a signed token before any database query", () => 
 test("Order status history stays disabled by default until migration is verified", () => {
   assert.match(historyFlag, /process\.env\.ENABLE_ORDER_STATUS_HISTORY === "true"/);
   assert.doesNotMatch(historyFlag, /\|\| true/);
+});
+
+test("Courier WhatsApp share is an explicit admin-only delivery action", () => {
+  assert.match(admin, /const session = await getAdminSession\(\)/);
+  assert.match(admin, /restaurantId: session\.restaurantId/);
+  assert.match(admin, /order\.fulfillmentType === "DELIVERY" && \(/);
+  assert.match(admin, /<CourierWhatsAppButton details=/);
+  assert.match(courierShare, /onClick=\{share\}/);
+  assert.match(courierShare, /https:\/\/wa\.me\/|courierWhatsAppShareUrl\(details\)/);
+  assert.doesNotMatch(courierShare, /\/order\/track\/|trackingToken|sessionToken/);
 });
