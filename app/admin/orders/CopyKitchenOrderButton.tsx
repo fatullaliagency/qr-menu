@@ -10,9 +10,11 @@ type KitchenLine = { name: string; quantity: number };
  */
 export default function CopyKitchenOrderButton({
   orderId,
+  destinationLabel,
   items,
 }: {
   orderId: string;
+  destinationLabel: string;
   items: KitchenLine[];
 }) {
   const [status, setStatus] = useState<"idle" | "copying" | "copied" | "error">("idle");
@@ -21,6 +23,7 @@ export default function CopyKitchenOrderButton({
     if (status === "copying") return;
     const text = [
       `Sifariş #${orderId.slice(-8)}`,
+      destinationLabel,
       ...items.map((item) => `${item.quantity} × ${item.name}`),
     ].join("\n");
 

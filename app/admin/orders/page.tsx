@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
+import { FULFILLMENT_LABELS, orderDestinationLabel, isFulfillmentType } from "@/app/lib/fulfillment";
+import type { FulfillmentType } from "@/app/lib/fulfillment";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
@@ -26,6 +28,7 @@ type OrdersPageProps = {
   searchParams: Promise<{
     status?: string | string[];
     method?: string | string[];
+    type?: string | string[];
     payment?: string | string[];
     page?: string | string[];
     q?: string | string[];
@@ -231,6 +234,8 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
         Object.prototype.hasOwnProperty.call(METHOD_LABELS, query.method)
       ? (query.method as PaymentMethod)
       : null;
+  const selectedFulfillment: FulfillmentType | null =
+    isFulfillmentType(query.type) ? query.type : null;
   const selectedPayment: PaymentStatus | null = cashDueOnly
     ? "PENDING"
     : typeof query.payment === "string" &&
@@ -274,6 +279,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   const filteredWhere: Prisma.OrderWhereInput = {
     restaurantId: session.restaurantId,
     ...(selectedStatus ? { status: selectedStatus } : {}),
+    ...(selectedFulfillment ? { fulfillmentType: selectedFulfillment } : {}),
     ...(selectedMethod ? { paymentMethod: selectedMethod } : {}),
     ...(selectedPayment ? { paymentStatus: selectedPayment } : {}),
     ...(orderSearch ? { id: { endsWith: orderSearch } } : {}),
@@ -367,6 +373,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
   const pageLink = (nextPage: number): string => {
     const params = new URLSearchParams();
     if (selectedStatus) params.set("status", selectedStatus);
+    if (selectedFulfillment) params.set("type", selectedFulfillment);
     if (selectedMethod) params.set("method", selectedMethod);
     if (selectedPayment) params.set("payment", selectedPayment);
     if (orderSearch) params.set("q", orderSearch);
@@ -487,7 +494,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">Sifarişləri filtrlə</h2>
-          <form key={`${selectedStatus ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}:${cashDueOnly}:${dateRange?.from ?? ""}:${dateRange?.to ?? ""}`}
+          <form key={`${selectedStatus ?? "ALL"}:${selectedFulfillment ?? "ALL"}:${selectedMethod ?? "ALL"}:${selectedPayment ?? "ALL"}:${orderSearch ?? ""}:${overdueOnly}:${cashDueOnly}:${dateRange?.from ?? ""}:${dateRange?.to ?? ""}`}
             method="get" action="/admin/orders" className="flex flex-wrap items-end gap-3">
             <label className="min-w-[190px] flex-1 text-sm font-medium">
               Sifariş nömrəsi
@@ -511,6 +518,16 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 <option value="ALL">Bütün statuslar</option>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-[190px] flex-1 text-sm font-medium">
+              Sifariş növü
+              <select name="type" defaultValue={selectedFulfillment ?? "ALL"}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-zinc-900">
+                <option value="ALL">Bütün növlər</option>
+                {Object.entries(FULFILLMENT_LABELS).map(([key, label]) => (
+                  <option value={key} key={key}>{label}</option>
                 ))}
               </select>
             </label>
@@ -590,6 +607,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
           <p className="mt-3 text-sm text-zinc-600">
             Göstərilən sifariş: <strong>{orders.length}</strong> / {filteredCount}
             {" · "}{selectedStatus ? STATUS_LABELS[selectedStatus] : "Bütün statuslar"}
+            {" · "}{selectedFulfillment ? FULFILLMENT_LABELS[selectedFulfillment] : "Bütün növlər"}
             {" · "}{selectedMethod ? METHOD_LABELS[selectedMethod] : "Bütün üsullar"}
             {" · "}{selectedPayment ? PAYMENT_LABELS[selectedPayment] : "Bütün ödəniş statusları"}
             {orderSearch ? " · Nömrə: " + orderSearch : ""}
@@ -602,7 +620,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
 
         {orders.length === 0 && (
           <div className="rounded-xl bg-white p-5">
-            {selectedStatus || selectedMethod || selectedPayment || orderSearch || overdueOnly || requestedDateFilter
+            {selectedStatus || selectedFulfillment || selectedMethod || selectedPayment || orderSearch || overdueOnly || requestedDateFilter
               ? "Axtarış və filtrlərə uyğun sifariş tapılmadı."
               : "Hələ sifariş yoxdur."}
           </div>
@@ -653,6 +671,10 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               </span>
             </div>
 
+            <p className="rounded-lg bg-indigo-50 px-3 py-2 text-base font-bold text-indigo-900">
+              {orderDestinationLabel(order.fulfillmentType, order.tableNumber)}
+            </p>
+
             {order.status === "NEW" && order.createdAt.getTime() < warningCutoff.getTime() && (
               <p
                 className="rounded-lg border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-900"
@@ -678,10 +700,12 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
                 </a>
               )}
             </div>
-            <p>
-              <strong>Ünvan:</strong>{" "}
-              {order.addressText || "Xəritə mövqeyi"}
-            </p>
+            {order.fulfillmentType === "DELIVERY" && (
+              <p>
+                <strong>Ünvan:</strong>{" "}
+                {order.addressText || "Ünvan qeyd edilməyib"}
+              </p>
+            )}
 
             {order.customerNote && (
               <p>
@@ -699,6 +723,7 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               <div className="flex flex-wrap items-center gap-3 pt-3">
                 <CopyKitchenOrderButton
                   orderId={order.id}
+                  destinationLabel={orderDestinationLabel(order.fulfillmentType, order.tableNumber)}
                   items={order.items.map((item) => ({
                     name: item.name,
                     quantity: item.quantity,

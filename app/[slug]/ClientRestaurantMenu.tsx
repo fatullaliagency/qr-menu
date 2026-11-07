@@ -4,6 +4,8 @@ import { useRef, useState, type FormEvent } from "react";
 import { createCashOrder } from "./order-actions";
 import { prepareCashOrderAttempt, clearCashOrderAttempt, type PendingCashOrderAttempt } from "@/app/lib/order-attempt-client";
 import type { CashOrderDraft } from "@/app/lib/order-idempotency";
+import type { FulfillmentType } from "@/app/lib/fulfillment";
+import { FULFILLMENT_LABELS } from "@/app/lib/fulfillment";
 import {
   addCartItem,
   canAddCartItem,
@@ -14,6 +16,14 @@ import {
 export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = false }: { restaurant: any; webOrdersEnabled?: boolean }) {
   const [cart, setCart] = useState<{ item: any; quantity: number }[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const modes: FulfillmentType[] = [
+    ...(restaurant.dineInEnabled && restaurant.tableCount > 0 ? ["DINE_IN" as const] : []),
+    ...(restaurant.deliveryEnabled ? ["DELIVERY" as const] : []),
+    ...(restaurant.pickupEnabled ? ["PICKUP" as const] : []),
+  ];
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>(
+    restaurant.deliveryEnabled ? "DELIVERY" : (modes[0] ?? "DELIVERY")
+  );
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const pendingAttemptRef = useRef<PendingCashOrderAttempt | null>(null);
@@ -71,7 +81,10 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
       slug: restaurant.slug,
       customerName: String(formData.get("customerName") ?? ""),
       customerPhone: String(formData.get("customerPhone") ?? ""),
-      addressText: String(formData.get("addressText") ?? ""),
+      fulfillmentType,
+      tableNumber: fulfillmentType === "DINE_IN" && formData.get("tableNumber")
+        ? Number(formData.get("tableNumber")) : null,
+      addressText: fulfillmentType === "DELIVERY" ? String(formData.get("addressText") ?? "") : "",
       customerNote: String(formData.get("customerNote") ?? ""),
       items: cart.map(({ item, quantity }) => ({ itemId: item.id, quantity })),
     };
@@ -285,7 +298,7 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
             <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
               <span className="text-lg font-bold text-[#e5c158]">{totalAmount.toFixed(2)} ₼</span>
               <div className="flex flex-wrap gap-2">
-                {webOrdersEnabled && (
+                {webOrdersEnabled && modes.length > 0 && (
                   <button
                     type="button"
                     onClick={() => { setCheckoutError(""); setCheckoutOpen(true); }}
@@ -310,7 +323,7 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
         </div>
       )}
 
-      {checkoutOpen && webOrdersEnabled && (
+      {checkoutOpen && webOrdersEnabled && modes.length > 0 && (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 p-4">
           <div
             role="dialog"
@@ -335,6 +348,46 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
             </p>
             <form onSubmit={submitOrder} className="space-y-3">
               <label className="block text-sm">
+                Sifariş növü
+                <select
+                  name="fulfillmentType"
+                  value={fulfillmentType}
+                  onChange={(event) => {
+                    setFulfillmentType(event.target.value as FulfillmentType);
+                    setCheckoutError("");
+                  }}
+                  required
+                  disabled={submitting}
+                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                >
+                  {modes.map((mode) => (
+                    <option key={mode} value={mode}>{FULFILLMENT_LABELS[mode]}</option>
+                  ))}
+                </select>
+              </label>
+              {fulfillmentType === "DINE_IN" && (
+                <label className="block text-sm">
+                  Masa nömrəsi
+                  <select
+                    name="tableNumber"
+                    required
+                    defaultValue=""
+                    disabled={submitting}
+                    className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                  >
+                    <option value="" disabled>Masanızı seçin</option>
+                    {Array.from({ length: restaurant.tableCount }, (_: unknown, i: number) => (
+                      <option value={i + 1} key={i + 1}>Masa {i + 1}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {fulfillmentType === "PICKUP" && (
+                <p className="rounded-lg bg-zinc-800 p-3 text-xs text-zinc-200">
+                  Sifarişinizi restorana gələrək götürəcəksiniz. Masa və çatdırılma ünvanı tələb edilmir.
+                </p>
+              )}
+              <label className="block text-sm">
                 Ad və soyad
                 <input
                   name="customerName"
@@ -357,17 +410,19 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                   className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
                 />
               </label>
-              <label className="block text-sm">
-                Çatdırılma ünvanı
-                <textarea
-                  name="addressText"
-                  required
-                  minLength={6}
-                  maxLength={300}
-                  rows={2}
-                  className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
-                />
-              </label>
+              {fulfillmentType === "DELIVERY" && (
+                <label className="block text-sm">
+                  Çatdırılma ünvanı
+                  <textarea
+                    name="addressText"
+                    required
+                    minLength={6}
+                    maxLength={300}
+                    rows={2}
+                    className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                  />
+                </label>
+              )}
               <label className="block text-sm">
                 Qeyd (istəyə bağlı)
                 <textarea

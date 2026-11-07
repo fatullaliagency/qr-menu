@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { makeTrackingToken } from "@/app/lib/order-tracking";
+import { isFulfillmentType, validateOrderDestination } from "@/app/lib/fulfillment";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
 import {
   isMatchingCashOrder,
@@ -19,6 +20,8 @@ const REPLAY_SELECT = {
   customerName: true,
   customerPhone: true,
   addressText: true,
+  fulfillmentType: true,
+  tableNumber: true,
   customerNote: true,
   items: { select: { menuItemId: true, quantity: true } },
 } as const;
@@ -62,6 +65,9 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
     typeof input.addressText === "string" ? input.addressText.trim() : "";
   const note =
     typeof input.customerNote === "string" ? input.customerNote.trim() : "";
+  const requestedType = input.fulfillmentType ?? "DELIVERY";
+  if (!isFulfillmentType(requestedType)) return failure("Sifariş növü düzgün deyil.");
+  const tableNumber = input.tableNumber ?? null;
 
   if (
     !/^[a-z0-9-]{2,120}$/.test(slug) ||
@@ -69,7 +75,7 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
     !/^[+0-9()\s-]{7,25}$/.test(phone) ||
     phone.replace(/\D/g, "").length < 7 ||
     phone.replace(/\D/g, "").length > 15 ||
-    address.length < 6 || address.length > 300 ||
+    address.length > 300 ||
     note.length > 500 ||
     !Array.isArray(input.items) ||
     input.items.length < 1 ||
@@ -105,7 +111,8 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
   // between two instances cannot insert two records with the same requestId.
   let validatedRestaurantId: string | null = null;
   const draft: CashOrderDraft = { slug, customerName: name, customerPhone: phone,
-    addressText: address, customerNote: note, items: input.items };
+    addressText: address, fulfillmentType: requestedType, tableNumber,
+    customerNote: note, items: input.items };
 
   const replay = async (restaurantId: string): Promise<Result | null> => {
     const previous = await db.order.findUnique({
@@ -121,10 +128,12 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
   try {
     const restaurant = await db.restaurant.findUnique({
       where: { slug },
-      select: { id: true },
+      select: { id: true, tableCount: true, dineInEnabled: true, deliveryEnabled: true, pickupEnabled: true },
     });
     if (!restaurant) return failure("Restoran tapılmadı.");
     validatedRestaurantId = restaurant.id;
+    const destinationError = validateOrderDestination(requestedType, tableNumber, address, restaurant);
+    if (destinationError) return failure(destinationError);
 
     // Check a completed attempt BEFORE reading live menu prices. A retry
     // should still resolve if a product has since been edited or removed.
@@ -181,7 +190,9 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
         restaurantId: restaurant.id,
         customerName: name,
         customerPhone: phone,
-        addressText: address,
+        fulfillmentType: requestedType,
+        tableNumber: requestedType === "DINE_IN" ? tableNumber : null,
+        addressText: address || null,
         customerNote: note || null,
         subtotal,
         deliveryFee: new Prisma.Decimal(0),

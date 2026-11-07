@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
+import type { FulfillmentType } from "@/app/lib/fulfillment";
+import { isFulfillmentType, orderDestinationLabel } from "@/app/lib/fulfillment";
 import { shouldPollCustomerStatus } from "@/app/lib/customer-tracking-poll";
 
 type Status = {
   status: OrderStatus;
+  fulfillmentType: FulfillmentType;
+  tableNumber: number | null;
   paymentMethod: string;
   paymentStatus: PaymentStatus;
   updatedAt: string;
@@ -91,6 +95,8 @@ export default function LiveOrderStatus({
           ![...STEPS.map((step) => step.status), "CANCELLED"].includes(next.status) ||
           !Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, next.paymentStatus) ||
           typeof next.paymentMethod !== "string" ||
+          !isFulfillmentType(next.fulfillmentType) ||
+          (next.tableNumber !== null && !Number.isInteger(next.tableNumber)) ||
           typeof next.updatedAt !== "string"
         ) {
           throw new Error("Invalid tracking response");
@@ -142,11 +148,19 @@ export default function LiveOrderStatus({
 
   const cancelled = state.status === "CANCELLED";
   const current = STEPS.findIndex((step) => step.status === state.status);
+  const steps = STEPS.map((step) => {
+    if (state.fulfillmentType === "DELIVERY") return step;
+    if (step.status === "ON_THE_WAY") return { ...step, title: "Sifariş hazırdır" };
+    if (step.status === "DELIVERED") return {
+      ...step, title: state.fulfillmentType === "DINE_IN" ? "Masaya təqdim edildi" : "Təhvil verildi",
+    };
+    return step;
+  });
 
   return (
     <section className="space-y-5">
       <p className="text-sm text-zinc-500">
-        Sifariş #{orderId.slice(-8)} · Təxminən hər 10 saniyədə yenilənir
+        Sifariş #{orderId.slice(-8)} · {orderDestinationLabel(state.fulfillmentType, state.tableNumber)} · Təxminən hər 10 saniyədə yenilənir
       </p>
       {lastChecked && (
         <p className="text-xs text-zinc-500" role="status">
@@ -176,7 +190,7 @@ export default function LiveOrderStatus({
       )}
 
       <div className="space-y-4">
-        {STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const done = !cancelled && index <= current;
           return (
             <div key={step.status} className="flex items-center gap-3">

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
+import { orderDestinationLabel } from "@/app/lib/fulfillment";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import PrintKitchenButton from "./PrintKitchenButton";
 import "./receipt.css";
@@ -45,6 +46,8 @@ async function KitchenPrintContent({ params }: PrintPageProps) {
       id: true,
       createdAt: true,
       status: true,
+      fulfillmentType: true,
+      tableNumber: true,
       restaurant: { select: { name: true } },
       items: {
         select: { id: true, name: true, quantity: true },
@@ -83,6 +86,9 @@ async function KitchenPrintContent({ params }: PrintPageProps) {
           <p className="mt-1 text-sm font-semibold">MƏTBƏX SİFARİŞ QƏBZİ</p>
           <p className="mt-3 text-lg font-bold">#{order.id.slice(-8)}</p>
           <p className="text-sm">{createdAt} (Bakı vaxtı)</p>
+          <p className="mt-1 text-lg font-extrabold">
+            {orderDestinationLabel(order.fulfillmentType, order.tableNumber)}
+          </p>
           <p className="mt-1 text-sm">{ORDER_STATUS[order.status]}</p>
         </header>
 

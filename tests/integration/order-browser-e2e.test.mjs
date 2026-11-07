@@ -43,7 +43,7 @@ async function waitUntilReady(proc, logs) {
 }
 
 test("Chromium real browser: new order, PIN access, admin notification, tracking and tenant isolation", {
-  timeout: 180_000,
+  timeout: 300_000,
 }, async (t) => {
   const db = new PrismaClient();
   const ids = [];
@@ -713,5 +713,69 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
         }
       });
     }
+  });
+
+  await t.test("One QR: owner enables table and pickup, customers order, kitchen sees correct destination", async () => {
+    await admin.goto(BASE + "/admin/order-settings");
+    await admin.getByRole("heading", { name: "Masa və sifariş xidmətləri" }).waitFor();
+    await admin.locator('input[name="tableCount"]').fill("12");
+    await admin.locator('input[name="dineInEnabled"]').check();
+    await admin.locator('input[name="pickupEnabled"]').check();
+    await admin.getByRole("button", { name: /Yadda saxla/ }).click();
+    await admin.getByRole("status").filter({ hasText: "Parametrlər yadda saxlanıldı." })
+      .waitFor({ timeout: 25_000 });
+
+    const orderByMode = async (type, tableNumber, label) => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(BASE + "/" + restaurantA.slug);
+        await page.getByRole("button", {
+          name: "CI Browser Test Dish — səbətə əlavə et",
+        }).click();
+        await page.getByRole("button", { name: "Sifariş ver →", exact: true }).click();
+        await page.locator('select[name="fulfillmentType"]').selectOption(type);
+        if (type === "DINE_IN") {
+          assert.equal(await page.locator('textarea[name="addressText"]').count(), 0);
+          await page.locator('select[name="tableNumber"]').selectOption(String(tableNumber));
+        }
+        if (type === "PICKUP") {
+          assert.equal(await page.locator('textarea[name="addressText"]').count(), 0);
+          assert.equal(await page.locator('select[name="tableNumber"]').count(), 0);
+        }
+        await page.locator('input[name="customerName"]').fill(label);
+        await page.locator('input[name="customerPhone"]').fill("+994501234567");
+        await page.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
+        await page.waitForURL(/\/order\/track\/[^/]+\?t=[a-f0-9]{64}/, { timeout: 30_000 });
+        const id = decodeURIComponent(page.url().match(/\/order\/track\/([^?]+)/)[1]);
+        const order = await db.order.findUniqueOrThrow({ where: { id } });
+        assert.equal(order.restaurantId, restaurantA.id);
+        assert.equal(order.fulfillmentType, type);
+        assert.equal(order.tableNumber, tableNumber);
+        assert.equal(order.addressText, null);
+        assert.match(await page.locator("main").innerText(), new RegExp(type === "DINE_IN" ? "Masa " + tableNumber : "Al-apar"));
+        return id;
+      } finally {
+        await ctx.close();
+      }
+    };
+    const tableId = await orderByMode("DINE_IN", 7, "CI Table Seven");
+    const pickupId = await orderByMode("PICKUP", null, "CI Pickup Guest");
+
+    await admin.goto(BASE + "/admin/orders?type=DINE_IN");
+    await admin.getByRole("heading", { name: "Sifariş #" + tableId.slice(-8) }).waitFor();
+    await admin.getByText("Masa 7", { exact: true }).waitFor();
+    assert.equal(await admin.getByRole("heading", { name: "Sifariş #" + pickupId.slice(-8) }).count(), 0);
+
+    await admin.goto(BASE + "/admin/orders?type=PICKUP");
+    await admin.getByRole("heading", { name: "Sifariş #" + pickupId.slice(-8) }).waitFor();
+    await admin.getByText("Al-apar", { exact: true }).last().waitFor();
+
+    const activeCount = await db.order.count({
+      where: { restaurantId: restaurantA.id, status: { in: ["NEW", "CONFIRMED", "PREPARING"] } },
+    });
+    const lastKitchenPage = Math.ceil(activeCount / 30);
+    await admin.goto(BASE + "/admin/orders/kitchen?page=" + lastKitchenPage);
+    await admin.getByText("Masa 7", { exact: true }).waitFor();
   });
 });

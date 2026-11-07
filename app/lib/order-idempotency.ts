@@ -4,11 +4,15 @@
  * Never use a browser-supplied key without validating its shape and matching
  * the original order's restaurant and customer/cart data on replay.
  */
+import type { FulfillmentType } from "./fulfillment.ts";
+
 export type CashOrderDraft = {
   slug: string;
   customerName: string;
   customerPhone: string;
   addressText: string;
+  fulfillmentType?: FulfillmentType;
+  tableNumber?: number | null;
   customerNote: string;
   items: { itemId: string; quantity: number }[];
 };
@@ -18,6 +22,8 @@ export type StoredCashOrder = {
   customerName: string;
   customerPhone: string;
   addressText: string | null;
+  fulfillmentType?: FulfillmentType;
+  tableNumber?: number | null;
   customerNote: string | null;
   items: { menuItemId: string | null; quantity: number }[];
 };
@@ -33,6 +39,8 @@ export function canonicalCashOrderDraft(draft: CashOrderDraft): string {
     customerName: draft.customerName.trim(),
     customerPhone: draft.customerPhone.trim(),
     addressText: draft.addressText.trim(),
+    fulfillmentType: draft.fulfillmentType ?? "DELIVERY",
+    tableNumber: (draft.fulfillmentType ?? "DELIVERY") === "DINE_IN" ? (draft.tableNumber ?? null) : null,
     customerNote: draft.customerNote.trim(),
     items: [...draft.items]
       .map(({ itemId, quantity }) => ({ itemId, quantity }))
@@ -49,7 +57,9 @@ export function isMatchingCashOrder(
     existing.restaurantId !== restaurantId ||
     existing.customerName !== draft.customerName.trim() ||
     existing.customerPhone !== draft.customerPhone.trim() ||
-    existing.addressText !== draft.addressText.trim() ||
+    (existing.addressText ?? "") !== draft.addressText.trim() ||
+    (existing.fulfillmentType ?? "DELIVERY") !== (draft.fulfillmentType ?? "DELIVERY") ||
+    (existing.tableNumber ?? null) !== ((draft.fulfillmentType ?? "DELIVERY") === "DINE_IN" ? (draft.tableNumber ?? null) : null) ||
     (existing.customerNote ?? "") !== draft.customerNote.trim() ||
     existing.items.length !== draft.items.length
   ) return false;

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
+import { orderDestinationLabel } from "@/app/lib/fulfillment";
 import { validTrackingToken } from "@/app/lib/order-tracking";
 import LiveOrderStatus from "./LiveOrderStatus";
 
@@ -32,6 +33,8 @@ async function TrackOrderContent({ params, searchParams }: Props) {
     select: {
       id: true,
       status: true,
+      fulfillmentType: true,
+      tableNumber: true,
       paymentMethod: true,
       paymentStatus: true,
       updatedAt: true,
@@ -46,12 +49,17 @@ async function TrackOrderContent({ params, searchParams }: Props) {
         <p className="text-sm text-zinc-600">
           Bu səhifənin bağlantısını saxlayın. Sifariş vəziyyəti avtomatik yenilənəcək.
         </p>
+        <p className="rounded-lg bg-indigo-50 p-3 text-base font-bold text-indigo-950">
+          {orderDestinationLabel(order.fulfillmentType, order.tableNumber)}
+        </p>
         <LiveOrderStatus
           orderId={order.id}
           token={token}
           initial={{
             status: order.status,
             paymentMethod: order.paymentMethod,
+            fulfillmentType: order.fulfillmentType,
+            tableNumber: order.tableNumber,
             paymentStatus: order.paymentStatus,
             updatedAt: order.updatedAt.toISOString(),
           }}

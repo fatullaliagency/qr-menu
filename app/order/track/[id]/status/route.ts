@@ -22,6 +22,8 @@ export async function GET(
     where: { id },
     select: {
       status: true,
+      fulfillmentType: true,
+      tableNumber: true,
       paymentMethod: true,
       paymentStatus: true,
       updatedAt: true,
@@ -38,6 +40,8 @@ export async function GET(
   return NextResponse.json(
     {
       status: order.status,
+      fulfillmentType: order.fulfillmentType,
+      tableNumber: order.tableNumber,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus,
       updatedAt: order.updatedAt.toISOString(),

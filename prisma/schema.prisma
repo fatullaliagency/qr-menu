@@ -12,6 +12,10 @@ model Restaurant {
   name         String
   slug         String     @unique
   phone        String
+  tableCount       Int     @default(0)
+  dineInEnabled    Boolean @default(false)
+  deliveryEnabled  Boolean @default(true)
+  pickupEnabled    Boolean @default(false)
 createdAt DateTime @default(now()) @db.Timestamp(3)
  pinCode String?
   subtitle     String?
@@ -72,6 +76,12 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OrderFulfillmentType {
+  DINE_IN
+  DELIVERY
+  PICKUP
+}
+
 enum PaymentMethod {
   CASH
   ONLINE_CARD
@@ -95,6 +105,9 @@ model Order {
   customerName String
   customerPhone String
 
+  fulfillmentType OrderFulfillmentType @default(DELIVERY)
+  tableNumber Int?
+
   addressText String?
   latitude Float?
   longitude Float?
@@ -115,6 +128,7 @@ model Order {
   statusEvents OrderStatusEvent[]
 
   @@index([restaurantId, createdAt])
+  @@index([restaurantId, fulfillmentType, createdAt])
 }
 
 model OrderItem {

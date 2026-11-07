@@ -1,4 +1,5 @@
 import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
+import { isFulfillmentType } from "./fulfillment.ts";
 
 /** Central order transition policy used by admin actions and tests. */
 export const NEXT_STATUSES: Record<OrderStatus, readonly OrderStatus[]> = {
@@ -75,12 +76,14 @@ export function buildOrderNoticeUrl(
         const source = parsed.searchParams;
         const status = source.get("status");
         const method = source.get("method");
+        const type = source.get("type");
         const payment = source.get("payment");
         const q = source.get("q");
         const page = source.get("page");
         const from = source.get("from");
         const to = source.get("to");
         if (isOrderStatus(status)) params.set("status", status);
+        if (isFulfillmentType(type)) params.set("type", type);
         if (method && PAYMENT_METHODS.some((value) => value === method)) {
           params.set("method", method);
         }

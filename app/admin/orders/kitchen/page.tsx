@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
+import { orderDestinationLabel } from "@/app/lib/fulfillment";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import KitchenScreenRefresh from "./KitchenScreenRefresh";
 import {
@@ -75,6 +76,8 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
       id: true,
       createdAt: true,
       status: true,
+      fulfillmentType: true,
+      tableNumber: true,
       items: {
         select: { id: true, name: true, quantity: true },
         orderBy: { id: "asc" },
@@ -153,6 +156,9 @@ async function KitchenScreenContent({ searchParams }: KitchenScreenProps) {
                     {STATUS_LABELS[order.status]}
                   </span>
                 </div>
+                <p className="rounded-lg bg-amber-100 p-3 text-xl font-extrabold text-amber-950">
+                  {orderDestinationLabel(order.fulfillmentType, order.tableNumber)}
+                </p>
                 <p className="text-sm text-zinc-600">
                   {order.createdAt.toLocaleString("az-AZ", { timeZone: "Asia/Baku" })}
                 </p>

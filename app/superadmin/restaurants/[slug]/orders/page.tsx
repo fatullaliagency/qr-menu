@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
+import { orderDestinationLabel } from "@/app/lib/fulfillment";
 import { hasSuperAdminSession } from "@/app/lib/superadmin-auth";
 import type { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 
@@ -99,6 +100,8 @@ async function RestaurantOrdersContent({ params, searchParams }: Props) {
       id: true,
       createdAt: true,
       status: true,
+      fulfillmentType: true,
+      tableNumber: true,
       paymentMethod: true,
       paymentStatus: true,
       total: true,
@@ -242,6 +245,7 @@ async function RestaurantOrdersContent({ params, searchParams }: Props) {
               </span>
             </div>
             <div className="grid gap-2 rounded-lg bg-zinc-50 p-3 text-sm sm:grid-cols-2">
+              <p><strong>Yer və xidmət:</strong> {orderDestinationLabel(order.fulfillmentType, order.tableNumber)}</p>
               <p><strong>Sifariş:</strong> {ORDER_LABELS[order.status]}</p>
               <p><strong>Ödəniş:</strong> {PAYMENT_LABELS[order.paymentStatus]}</p>
               <p><strong>Ödəniş üsulu:</strong> {METHOD_LABELS[order.paymentMethod]}</p>
