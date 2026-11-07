@@ -6,7 +6,7 @@ export const MAX_MENU_VIDEO_BYTES = 2_621_440; // 2.5 MiB
 export type MenuVideoUpload = {
   mimeType: "video/mp4" | "video/webm";
   sizeBytes: number;
-  payload: Uint8Array;
+  payload: Uint8Array<ArrayBuffer>;
 };
 
 export function inspectMenuVideo(mimeType: string, bytes: Uint8Array): string | null {
@@ -41,9 +41,12 @@ export async function parseMenuVideoFile(
   const bytes = new Uint8Array(await input.arrayBuffer());
   const error = inspectMenuVideo(input.type, bytes);
   if (error) throw new Error(error);
+  // Prisma Bytes requires an ArrayBuffer-backed Uint8Array, not ArrayBufferLike.
+  const payload = new Uint8Array(new ArrayBuffer(bytes.length));
+  payload.set(bytes);
   return {
     mimeType: input.type as MenuVideoUpload["mimeType"],
-    sizeBytes: bytes.length,
-    payload: bytes,
+    sizeBytes: payload.length,
+    payload,
   };
 }
