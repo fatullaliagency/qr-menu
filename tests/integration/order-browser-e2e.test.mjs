@@ -753,7 +753,8 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
         assert.equal(order.fulfillmentType, type);
         assert.equal(order.tableNumber, tableNumber);
         assert.equal(order.addressText, null);
-        assert.match(await page.locator("main").innerText(), new RegExp(type === "DINE_IN" ? "Masa " + tableNumber : "Al-apar"));
+        await page.getByRole("heading", { name: "Sifarişimi izlə" }).waitFor();
+        assert.match(await page.locator("main").last().innerText(), new RegExp(type === "DINE_IN" ? "Masa " + tableNumber : "Al-apar"));
         return id;
       } finally {
         await ctx.close();
