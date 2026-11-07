@@ -79,7 +79,7 @@ export default function VideoPickerInput({
       </div>
       {preview && (
         <div className="space-y-1">
-          <video src={preview} controls playsInline preload="metadata"
+          <video src={preview} controls playsInline preload="none"
             aria-label="Məhsul videosuna ön baxış"
             className="max-h-48 w-full rounded-lg bg-black object-contain" />
           {selection?.name && <p className="text-xs text-sky-900">{selection.name}</p>}

@@ -955,8 +955,15 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     });
     await edit.getByRole("button", { name: /Yadda saxla/ }).click();
     await admin.getByText("CI Video Menu Product", { exact: true }).waitFor();
-    const replaced = await db.menuItemVideo.findUniqueOrThrow({ where: { menuItemId: product.id } });
-    assert.equal(replaced.mimeType, "video/webm");
+    // Server Actions finish asynchronously. Poll the database rather than an old,
+    // already-visible product name (which never proved the edit was persisted).
+    let replaced = null;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      replaced = await db.menuItemVideo.findUnique({ where: { menuItemId: product.id } });
+      if (replaced?.mimeType === "video/webm") break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    assert.equal(replaced?.mimeType, "video/webm");
     assert.deepEqual(Buffer.from(replaced.payload), webm);
 
     // Remove the video but preserve the menu product and its photo field.
@@ -966,7 +973,13 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     await edit.getByRole("button", { name: "Videonu sil" }).click();
     await edit.getByRole("button", { name: /Yadda saxla/ }).click();
     await admin.getByText("CI Video Menu Product", { exact: true }).waitFor();
-    assert.equal(await db.menuItemVideo.count({ where: { menuItemId: product.id } }), 0);
+    let remaining = -1;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      remaining = await db.menuItemVideo.count({ where: { menuItemId: product.id } });
+      if (remaining === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    assert.equal(remaining, 0);
     assert.equal(await db.menuItem.count({ where: { id: product.id, restaurantId: restaurantA.id } }), 1);
   });
 
