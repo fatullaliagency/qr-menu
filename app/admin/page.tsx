@@ -5,6 +5,8 @@ import { db } from "@/app/lib/db";
 import { getAdminSession, requireAdminSession } from "@/app/lib/admin-auth";
 import AdminPinGuard from "./AdminPinGuard";
 import ImagePickerInput from "./ImagePickerInput";
+import VideoPickerInput from "./VideoPickerInput";
+import { parseMenuVideoFile } from "@/app/lib/menu-video";
 import QrCodeBox from "./QrCodeBox";
 
 type PageProps = {
@@ -151,12 +153,14 @@ async function addMenuItem(fd: FormData) {
   });
   if (!category) throw new Error("Kateqoriya bu restorana aid deyil.");
   const description = readText(fd, "description");
+  const video = await parseMenuVideoFile(fd.get("videoFile"));
   await db.menuItem.create({
     data: {
       name: readRequired(fd, "name"),
       price: readPrice(fd),
       description: description || null,
       imageUrl: readImage(fd, "imageUrl"),
+      ...(video ? { video: { create: { ...video, restaurantId: restaurant.id } } } : {}),
       categoryId,
       restaurantId: restaurant.id,
     },
@@ -169,16 +173,30 @@ async function editMenuItem(fd: FormData) {
   const restaurant = await authorizedRestaurant(fd);
   const id = readRequired(fd, "id", 150);
   const description = readText(fd, "description");
-  const result = await db.menuItem.updateMany({
-    where: { id, restaurantId: restaurant.id },
-    data: {
-      name: readRequired(fd, "name"),
-      price: readPrice(fd),
-      description: description || null,
-      imageUrl: readImage(fd, "imageUrl"),
-    },
+  const video = await parseMenuVideoFile(fd.get("videoFile"));
+  const removeVideo = fd.get("removeVideo") === "1";
+  const changes = {
+    name: readRequired(fd, "name"),
+    price: readPrice(fd),
+    description: description || null,
+    imageUrl: readImage(fd, "imageUrl"),
+  };
+  await db.$transaction(async (tx) => {
+    const result = await tx.menuItem.updateMany({
+      where: { id, restaurantId: restaurant.id },
+      data: changes,
+    });
+    if (result.count !== 1) throw new Error("Məhsul tapılmadı.");
+    if (video) {
+      await tx.menuItemVideo.upsert({
+        where: { menuItemId: id },
+        create: { menuItemId: id, restaurantId: restaurant.id, ...video },
+        update: { ...video },
+      });
+    } else if (removeVideo) {
+      await tx.menuItemVideo.deleteMany({ where: { menuItemId: id, restaurantId: restaurant.id } });
+    }
   });
-  if (result.count !== 1) throw new Error("Məhsul tapılmadı.");
   refreshMenu(restaurant.slug);
 }
 
@@ -247,6 +265,7 @@ async function AdminContent({ searchParams }: PageProps) {
               description: true,
               price: true,
               imageUrl: true,
+              video: { select: { updatedAt: true } },
             },
           },
         },
@@ -362,6 +381,7 @@ async function AdminContent({ searchParams }: PageProps) {
               <input type="number" name="price" required min="0" max="999999.99" step="0.01" placeholder="Qiymət (₼)" className={inputClass} />
               <input name="description" placeholder="Tərkibi / açıqlama" className={inputClass} />
               <ImagePickerInput name="imageUrl" label="Məhsulun şəkli" />
+              <VideoPickerInput />
               <button type="submit" className="w-full rounded-xl bg-zinc-900 py-2.5 font-bold text-white hover:bg-zinc-800">
                 Məhsulu menyuya əlavə et
               </button>
@@ -394,6 +414,7 @@ async function AdminContent({ searchParams }: PageProps) {
                         {item.imageUrl && (
                           <img src={item.imageUrl} alt={item.name} className="h-14 w-14 shrink-0 rounded-xl border object-cover" />
                         )}
+                        {item.video && <span className="rounded-lg bg-sky-100 px-2 py-1 text-xs font-bold text-sky-900">🎬 Video</span>}
                         <div className="min-w-0">
                           <div className="font-bold text-zinc-900">{item.name}</div>
                           {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
@@ -418,6 +439,9 @@ async function AdminContent({ searchParams }: PageProps) {
                         <input name="description" defaultValue={item.description ?? ""} placeholder="Tərkibi" className={inputClass} />
                       </div>
                       <ImagePickerInput name="imageUrl" label="Yeni şəkil seç" defaultValue={item.imageUrl ?? ""} />
+                      <VideoPickerInput defaultUrl={item.video
+                        ? "/api/menu-video/" + encodeURIComponent(item.id) + "?v=" + item.video.updatedAt.getTime()
+                        : ""} />
                       <button type="submit" className="w-full rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700">💾 Yadda saxla</button>
                     </form>
                   </div>

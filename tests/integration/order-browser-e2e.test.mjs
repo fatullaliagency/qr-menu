@@ -903,4 +903,71 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
       await ctx.close();
     }
   });
+  await t.test("Admin uploads, replaces and removes a short video; customer can open it without autoplaying the whole menu", async () => {
+    const mp4 = Buffer.from([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 0, 0, 0, 0, 0]);
+    const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01, 0x42, 0xf7, 0x81, 0x01]);
+    await admin.goto(BASE + "/admin?slug=" + restaurantA.slug);
+    const newForm = admin.locator("form").filter({
+      has: admin.getByRole("heading", { name: "🍔 Yeni məhsul" }),
+    });
+    await newForm.locator('select[name="categoryId"]').selectOption(category.id);
+    await newForm.locator('input[name="name"]').fill("CI Video Menu Product");
+    await newForm.locator('input[name="price"]').fill("8.50");
+    await newForm.locator('input[name="description"]').fill("CI short food animation");
+    await newForm.locator('input[name="videoFile"]').setInputFiles({
+      name: "demo.mp4", mimeType: "video/mp4", buffer: mp4,
+    });
+    await newForm.getByRole("button", { name: /Məhsulu menyuya əlavə et/ }).click();
+    await admin.getByText("CI Video Menu Product", { exact: true })
+      .waitFor({ timeout: 30_000 });
+
+    const product = await db.menuItem.findFirstOrThrow({
+      where: { restaurantId: restaurantA.id, name: "CI Video Menu Product" },
+      include: { video: true },
+    });
+    assert.equal(product.video?.mimeType, "video/mp4");
+    assert.equal(product.video?.sizeBytes, mp4.length);
+    assert.deepEqual(Buffer.from(product.video.payload), mp4);
+    assert.equal(await db.menuItemVideo.count({ where: { menuItemId: product.id } }), 1);
+
+    const ctx = await browser.newContext();
+    const customerPage = await ctx.newPage();
+    try {
+      await customerPage.goto(BASE + "/" + restaurantA.slug);
+      assert.equal(await customerPage.locator("video").count(), 0);
+      await customerPage.getByRole("button", { name: "CI Video Menu Product — videoya bax" }).click();
+      const dialog = customerPage.getByRole("dialog", { name: "CI Video Menu Product videosu" });
+      await dialog.waitFor();
+      assert.match(await dialog.locator("video").getAttribute("src"), new RegExp("/api/menu-video/" + product.id));
+      assert.equal(await dialog.locator("video").evaluate((element) => element.muted), true);
+      await dialog.getByRole("button", { name: "Videonu bağla" }).click();
+      assert.equal(await customerPage.getByRole("dialog").count(), 0);
+    } finally {
+      await ctx.close();
+    }
+
+    // Replace by editing only this restaurant's menu item.
+    const rowFor = () => admin.locator("div.border-b.py-3").filter({ hasText: "CI Video Menu Product" });
+    await rowFor().locator('label[for="edit_' + product.id + '"]').click();
+    let edit = rowFor().locator("form").last();
+    await edit.locator('input[name="videoFile"]').setInputFiles({
+      name: "demo.webm", mimeType: "video/webm", buffer: webm,
+    });
+    await edit.getByRole("button", { name: /Yadda saxla/ }).click();
+    await admin.getByText("CI Video Menu Product", { exact: true }).waitFor();
+    const replaced = await db.menuItemVideo.findUniqueOrThrow({ where: { menuItemId: product.id } });
+    assert.equal(replaced.mimeType, "video/webm");
+    assert.deepEqual(Buffer.from(replaced.payload), webm);
+
+    // Remove the video but preserve the menu product and its photo field.
+    await admin.goto(BASE + "/admin?slug=" + restaurantA.slug);
+    await rowFor().locator('label[for="edit_' + product.id + '"]').click();
+    edit = rowFor().locator("form").last();
+    await edit.getByRole("button", { name: "Videonu sil" }).click();
+    await edit.getByRole("button", { name: /Yadda saxla/ }).click();
+    await admin.getByText("CI Video Menu Product", { exact: true }).waitFor();
+    assert.equal(await db.menuItemVideo.count({ where: { menuItemId: product.id } }), 0);
+    assert.equal(await db.menuItem.count({ where: { id: product.id, restaurantId: restaurantA.id } }), 1);
+  });
+
 });

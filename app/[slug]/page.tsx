@@ -18,7 +18,9 @@ export default async function RestaurantMenuPage({ params }: PageProps) {
     include: {
       categories: {
         include: {
-          menuItems: true, // Şemadaki 'menuItems' alanı ile birebir eşleştirildi
+          menuItems: {
+            include: { video: { select: { updatedAt: true } } },
+          },
         },
       },
     },

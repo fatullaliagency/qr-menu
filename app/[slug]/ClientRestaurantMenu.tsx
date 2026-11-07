@@ -18,6 +18,7 @@ import {
 export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = false }: { restaurant: any; webOrdersEnabled?: boolean }) {
   const [cart, setCart] = useState<{ item: any; quantity: number }[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<{ src: string; title: string; poster?: string } | null>(null);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryCoordinates | null>(null);
   const modes: FulfillmentType[] = [
@@ -265,10 +266,27 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                     {item.imageUrl && (
                       <img src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-xl object-cover border border-[#d4af37]/30 shrink-0" />
                     )}
+                    {!item.imageUrl && item.video && (
+                      <span aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-2xl">🎬</span>
+                    )}
                     <div>
                       <h4 className="font-bold text-white">{item.name}</h4>
                       {item.description && <p className="text-xs text-zinc-400 mt-0.5">{item.description}</p>}
                       <p className="text-[#e5c158] font-bold mt-1">{Number(item.price).toFixed(2)} ₼</p>
+                      {item.video && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveVideo({
+                            src: "/api/menu-video/" + encodeURIComponent(item.id) + "?v=" + new Date(item.video.updatedAt).getTime(),
+                            title: item.name,
+                            poster: item.imageUrl || undefined,
+                          })}
+                          aria-label={item.name + " — videoya bax"}
+                          className="mt-2 inline-flex items-center gap-1 rounded-lg border border-[#d4af37]/50 px-2 py-1 text-xs font-semibold text-[#e5c158] hover:bg-[#d4af37]/10"
+                        >
+                          ▶ Video izlə
+                        </button>
+                      )}
                     </div>
                   </div>
                   <button
@@ -287,6 +305,26 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
           </div>
         ))}
       </div>
+
+      {activeVideo && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-3"
+          onClick={() => setActiveVideo(null)}>
+          <div role="dialog" aria-modal="true" aria-label={activeVideo.title + " videosu"}
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-xl space-y-3 rounded-2xl border border-[#d4af37]/40 bg-[#15120e] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold text-[#e5c158]">{activeVideo.title}</h3>
+              <button type="button" onClick={() => setActiveVideo(null)}
+                aria-label="Videonu bağla" className="rounded-lg bg-zinc-700 px-3 py-1 text-lg text-white">×</button>
+            </div>
+            <video key={activeVideo.src} src={activeVideo.src}
+              poster={activeVideo.poster} autoPlay muted loop playsInline controls preload="metadata"
+              className="max-h-[70vh] w-full rounded-xl bg-black object-contain">
+              Brauzeriniz video oynatmağı dəstəkləmir.
+            </video>
+          </div>
+        </div>
+      )}
 
       {/* 4. SƏBƏT */}
       {cart.length > 0 && (

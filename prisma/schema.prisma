@@ -54,11 +54,25 @@ model MenuItem {
   description  String?
   price        Float
   imageUrl     String?
+  video        MenuItemVideo?
   categoryId   String
   category     Category   @relation(fields: [categoryId], references: [id])
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 }
+// Videos are isolated from menu metadata so normal menu pages never fetch binary data.
+model MenuItemVideo {
+  menuItemId    String   @id
+  menuItem      MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  restaurantId  String
+  mimeType      String   @db.VarChar(20)
+  sizeBytes     Int
+  payload       Bytes
+  updatedAt     DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
 model AdminLoginAttempt {
   key            String    @id @db.VarChar(64)
   failedAttempts Int       @default(0)

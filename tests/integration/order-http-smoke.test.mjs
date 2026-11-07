@@ -71,9 +71,14 @@ test("Next.js HTTP routes enforce signed tracking and restaurant session isolati
   const category = await db.category.create({
     data: { restaurantId: restaurantA.id, name: "CI Meals" },
   });
-  await db.menuItem.create({
+  const menuItem = await db.menuItem.create({
     data: { restaurantId: restaurantA.id, categoryId: category.id, name: "CI Example Dish", price: 5.75 },
   });
+  const videoBytes = Uint8Array.from([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 0, 0, 0, 0, 0]);
+  await db.menuItemVideo.create({ data: {
+    menuItemId: menuItem.id, restaurantId: restaurantA.id,
+    mimeType: "video/mp4", sizeBytes: videoBytes.length, payload: videoBytes,
+  } });
   const orderAId = randomUUID();
   const orderBId = randomUUID();
   const baseOrder = {
@@ -104,6 +109,35 @@ test("Next.js HTTP routes enforce signed tracking and restaurant session isolati
     const html = await response.text();
     assert.match(html, /CI Restaurant Alpha/);
     assert.match(html, /CI Example Dish/);
+    assert.match(html, /videoya bax/);
+    assert.doesNotMatch(html, /data:video\/mp4;base64/);
+  });
+
+  await t.test("Video GET and HEAD support browser ranges without loading bytes into menu HTML", async () => {
+    const url = BASE + "/api/menu-video/" + menuItem.id;
+    const full = await fetch(url);
+    assert.equal(full.status, 200);
+    assert.equal(full.headers.get("content-type"), "video/mp4");
+    assert.equal(full.headers.get("accept-ranges"), "bytes");
+    assert.equal(full.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(full.headers.get("content-length"), String(videoBytes.length));
+    assert.deepEqual([...new Uint8Array(await full.arrayBuffer())], [...videoBytes]);
+
+    const partial = await fetch(url, { headers: { Range: "bytes=4-7" } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get("content-range"), "bytes 4-7/20");
+    assert.deepEqual([...new Uint8Array(await partial.arrayBuffer())], [0x66, 0x74, 0x79, 0x70]);
+
+    const head = await fetch(url, { method: "HEAD" });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("content-length"), String(videoBytes.length));
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+
+    const invalid = await fetch(url, { headers: { Range: "bytes=999-" } });
+    assert.equal(invalid.status, 416);
+    assert.equal(invalid.headers.get("content-range"), "bytes */20");
+    assert.equal((await fetch(BASE + "/api/menu-video/not-found")).status, 404);
+    assert.equal((await fetch(BASE + "/api/menu-video/" + restaurantB.id)).status, 404);
   });
 
   await t.test("Notification API denies anonymous and expired admin sessions", async () => {
