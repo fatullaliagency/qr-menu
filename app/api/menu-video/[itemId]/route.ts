@@ -2,8 +2,6 @@ import type { NextRequest } from "next/server";
 import { db } from "@/app/lib/db";
 import { parseVideoRange } from "@/app/lib/video-range";
 
-export const dynamic = "force-dynamic";
-
 type Props = { params: Promise<{ itemId: string }> };
 
 function notFoundVideo() {
