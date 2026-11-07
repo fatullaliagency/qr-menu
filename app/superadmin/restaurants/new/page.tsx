@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { hasSuperAdminSession } from "@/app/lib/superadmin-auth";
 import { createSuperAdminRestaurant } from "./actions";
+import RestaurantNameInput from "@/app/admin/restaurants/new/RestaurantNameInput";
 
 export const metadata = {
   title: "Yeni restoran yarat | QR Menü Super Admin",
@@ -18,8 +19,7 @@ type Props = {
 
 const ERRORS: Record<string, string> = {
   validation:
-    "Məlumatları yoxlayın: restoran adı 2–120, telefon 6–30 simvol, URL adı 3–40 latın hərfi/rəqəm/tire, PİN 6–12 rəqəm, VÖEN daxil edilirsə 10 rəqəm olmalıdır.",
-  duplicate: "Bu restoran URL adı artıq istifadə olunur. Başqa URL adı seçin.",
+    "Məlumatları yoxlayın: restoran adı 2–120, telefon 6–30 simvol, PİN 6–12 rəqəm, VÖEN daxil edilirsə 10 rəqəm olmalıdır.",
 };
 
 export default function NewSuperAdminRestaurantPage(props: Props) {
@@ -79,20 +79,8 @@ async function NewRestaurantContent({ searchParams }: Props) {
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <form action={createSuperAdminRestaurant} className="space-y-4">
-            <label className="block text-sm font-medium">
-              Restoran adı
-              <input name="name" required minLength={2} maxLength={120}
-                placeholder="Məsələn: Yeni Test Kafe" className={input} />
-            </label>
-            <label className="block text-sm font-medium">
-              URL adı (slug)
-              <input name="slug" required minLength={3} maxLength={40}
-                pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]"
-                placeholder="yeni-test-kafe" autoCapitalize="none" className={input} />
-              <span className="mt-1 block text-xs text-zinc-500">
-                Kiçik latın hərfləri, rəqəmlər və tire. URL sonradan asan dəyişdirilmir.
-              </span>
-            </label>
+            <RestaurantNameInput className={input}
+              labelClassName="block text-sm font-medium" placeholder="Məsələn: Qoşa Samovar" />
             <label className="block text-sm font-medium">
               Restoran telefonu
               <input name="phone" type="tel" required minLength={6} maxLength={30}

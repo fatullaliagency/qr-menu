@@ -5,14 +5,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { hashRestaurantPin } from "@/app/lib/pin-security";
+import { createWithRestaurantSlug } from "@/app/lib/restaurant-slug";
+import RestaurantNameInput from "./RestaurantNameInput";
 
 type PageProps = {
   searchParams: Promise<{ created?: string; error?: string }>;
 };
-
-const RESERVED_SLUGS = new Set([
-  "admin", "api", "_next", "login", "robots.txt", "sitemap.xml", "favicon.ico",
-]);
 
 function field(fd: FormData, key: string): string {
   const value = fd.get(key);
@@ -40,15 +38,12 @@ async function createRestaurant(fd: FormData) {
   }
 
   const name = field(fd, "name");
-  const slug = field(fd, "slug").toLowerCase();
   const phone = field(fd, "phone");
   const pin = field(fd, "pin");
 
   if (
     name.length < 2 || name.length > 120 ||
     phone.length < 3 || phone.length > 100 ||
-    !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ||
-    RESERVED_SLUGS.has(slug) ||
     !/^\d{4,12}$/.test(pin)
   ) {
     redirect("/admin/restaurants/new?error=validation");
@@ -56,20 +51,12 @@ async function createRestaurant(fd: FormData) {
 
   const pinHash = await hashRestaurantPin(pin);
 
-  // Do not edit any existing restaurant. A duplicate slug is rejected.
-  try {
+  // Duplicate names receive a unique -2, -3 suffix without changing any existing menu URL.
+  const slug = await createWithRestaurantSlug(name, async (generatedSlug) => {
     await db.restaurant.create({
-      data: { name, slug, phone, pinCode: pinHash },
+      data: { name, slug: generatedSlug, phone, pinCode: pinHash },
     });
-  } catch (error: unknown) {
-    if (
-      typeof error === "object" && error !== null &&
-      "code" in error && error.code === "P2002"
-    ) {
-      redirect("/admin/restaurants/new?error=duplicate");
-    }
-    throw error;
-  }
+  });
 
   redirect(`/admin/restaurants/new?created=${encodeURIComponent(slug)}`);
 }
@@ -77,8 +64,7 @@ async function createRestaurant(fd: FormData) {
 const errors: Record<string, string> = {
   configuration: "ADMIN_CREATION_SECRET Vercel-də qurulmayıb və ya 32 simvoldan qısadır.",
   authorization: "Sahibin gizli açarı yanlışdır.",
-  validation: "Məlumatları yoxlayın: ad 2–120, telefon 3–100 simvol, URL adı 3–40 kiçik latın hərfi/rəqəm/tire, PİN isə 4–12 rəqəm olmalıdır.",
-  duplicate: "Bu URL adı artıq istifadə olunur. Başqa ad seçin.",
+  validation: "Məlumatları yoxlayın: ad 2–120, telefon 3–100 simvol, PİN isə 4–12 rəqəm olmalıdır.",
 };
 
 
@@ -124,20 +110,7 @@ async function NewRestaurantContent({ searchParams }: PageProps) {
         )}
 
         <form action={createRestaurant} className="space-y-4">
-          <label className="block text-sm font-semibold">
-            Restoranın adı
-            <input name="name" required minLength={2} maxLength={120}
-              placeholder="Məsələn: Yeni Kafe" className={`mt-1 ${input}`} />
-          </label>
-          <label className="block text-sm font-semibold">
-            URL adı (slug)
-            <input name="slug" required minLength={3} maxLength={40}
-              placeholder="meselen-yeni-kafe" pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]"
-              className={`mt-1 ${input}`} />
-            <span className="mt-1 block text-xs font-normal text-gray-500">
-              Kiçik latın hərfləri, rəqəmlər və tire. Boşluq olmaz.
-            </span>
-          </label>
+          <RestaurantNameInput className={`mt-1 ${input}`} />
           <label className="block text-sm font-semibold">
             Telefon
             <input name="phone" type="tel" required maxLength={100}
