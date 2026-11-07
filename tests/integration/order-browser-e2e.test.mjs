@@ -160,6 +160,8 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     assert.equal(order?.items[0].menuItemId, item.id);
     assert.equal(order?.items[0].quantity, 1);
     assert.equal(order?.total.toString(), "7.45");
+    assert.equal(order?.latitude, null);
+    assert.equal(order?.longitude, null);
     assert.equal(await db.order.count({ where: { id: orderId } }), 1);
   });
 
@@ -787,5 +789,61 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     const lastKitchenPage = Math.ceil(activeCount / 30);
     await admin.goto(BASE + "/admin/orders/kitchen?page=" + lastKitchenPage);
     await admin.getByText("Masa 7", { exact: true }).waitFor();
+  });
+
+  await t.test("Delivery map pin is chosen by tap/GPS, stored once and only visible to restaurant", async () => {
+    const ctx = await browser.newContext({
+      permissions: ["geolocation"],
+      geolocation: { latitude: 40.402518, longitude: 49.901238 },
+    });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(BASE + "/" + restaurantA.slug);
+      await page.getByRole("button", { name: "CI Browser Test Dish — səbətə əlavə et" }).click();
+      await page.getByRole("button", { name: "Sifariş ver →", exact: true }).click();
+      assert.equal(await page.getByTestId("delivery-map").count(), 0);
+      await page.getByRole("button", { name: /Xəritədən çatdırılma yeri seç/ }).click();
+      const map = page.getByTestId("delivery-map");
+      await map.waitFor();
+      await page.getByRole("button", { name: "Cari yerimi seç" }).click();
+      await page.getByRole("status").filter({ hasText: "40.402518, 49.901238" })
+        .waitFor({ timeout: 15_000 });
+
+      // Map click should override GPS; a point on the actual interactive map is selected.
+      const bounds = await map.boundingBox();
+      assert.ok(bounds?.width > 100 && bounds.height > 100);
+      await page.mouse.click(bounds.x + bounds.width / 2 + 25, bounds.y + bounds.height / 2 + 15);
+      await page.getByTestId("delivery-pin").waitFor();
+      await page.locator('input[name="customerName"]').fill("CI Map Delivery Customer");
+      await page.locator('input[name="customerPhone"]').fill("+994501234567");
+      await page.locator('textarea[name="addressText"]').fill("Baku CI Map Building 5, entrance 2");
+      await page.getByRole("button", { name: /Nağd sifarişi göndər/ }).click();
+      await page.waitForURL(/\/order\/track\/[^/]+\?t=[a-f0-9]{64}/, { timeout: 30_000 });
+      const id = decodeURIComponent(page.url().match(/\/order\/track\/([^?]+)/)[1]);
+      const order = await db.order.findUniqueOrThrow({ where: { id } });
+      assert.equal(order.fulfillmentType, "DELIVERY");
+      assert.equal(order.tableNumber, null);
+      assert.ok(Math.abs(order.latitude - 40.402518) < 0.02);
+      assert.ok(Math.abs(order.longitude - 49.901238) < 0.02);
+      assert.equal(order.addressText, "Baku CI Map Building 5, entrance 2");
+
+      // Customer tracking intentionally never leaks GPS, phone or address.
+      const status = await page.request.get(BASE + "/order/track/" + id + "/status?t=" + new URL(page.url()).searchParams.get("t"));
+      assert.equal(status.status(), 200);
+      const statusData = await status.text();
+      assert.doesNotMatch(statusData, /latitude|longitude|49\.901238|customerPhone|addressText/);
+
+      await admin.goto(BASE + "/admin/orders?type=DELIVERY&q=" + id.slice(-8));
+      await admin.getByRole("heading", { name: "Sifariş #" + id.slice(-8) }).waitFor();
+      const link = admin.getByRole("link", { name: /Müştərinin göndərdiyi məkanı xəritədə aç/ });
+      await link.waitFor();
+      const url = new URL(await link.getAttribute("href"));
+      assert.equal(url.hostname, "www.google.com");
+      const [lat, lon] = url.searchParams.get("query").split(",").map(Number);
+      assert.equal(lat, order.latitude);
+      assert.equal(lon, order.longitude);
+    } finally {
+      await ctx.close();
+    }
   });
 });

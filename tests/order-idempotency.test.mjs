@@ -70,6 +70,18 @@ test("An unchanged request only recovers its own restaurant and exact details", 
   assert.equal(isMatchingCashOrder(stored(), "restaurant-1", { ...sample(), customerNote: "Different" }), false);
 });
 
+test("Location coordinates are part of the retry fingerprint and tenant-safe replay", () => {
+  const base = sample();
+  const selected = { ...base, latitude: 40.409264, longitude: 49.867092 };
+  const existing = { ...stored(), latitude: selected.latitude, longitude: selected.longitude };
+  assert.equal(isMatchingCashOrder(existing, "restaurant-1", selected), true);
+  assert.equal(isMatchingCashOrder(existing, "restaurant-2", selected), false);
+  assert.equal(isMatchingCashOrder(existing, "restaurant-1", { ...selected, longitude: 49.867093 }), false);
+  assert.notEqual(canonicalCashOrderDraft(base), canonicalCashOrderDraft(selected));
+  assert.notEqual(canonicalCashOrderDraft(selected),
+    canonicalCashOrderDraft({ ...selected, latitude: 40.409265 }));
+});
+
 test("Reload with the same customer/cart data reuses the same pending order key", async () => {
   const storage = memoryStorage();
   const draft = sample();

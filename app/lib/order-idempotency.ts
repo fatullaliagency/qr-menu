@@ -11,6 +11,8 @@ export type CashOrderDraft = {
   customerName: string;
   customerPhone: string;
   addressText: string;
+  latitude?: number | null;
+  longitude?: number | null;
   fulfillmentType?: FulfillmentType;
   tableNumber?: number | null;
   customerNote: string;
@@ -22,6 +24,8 @@ export type StoredCashOrder = {
   customerName: string;
   customerPhone: string | null;
   addressText: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   fulfillmentType?: FulfillmentType;
   tableNumber?: number | null;
   customerNote: string | null;
@@ -39,6 +43,8 @@ export function canonicalCashOrderDraft(draft: CashOrderDraft): string {
     customerName: draft.customerName.trim(),
     customerPhone: draft.customerPhone.trim(),
     addressText: draft.addressText.trim(),
+    latitude: (draft.fulfillmentType ?? "DELIVERY") === "DELIVERY" ? (draft.latitude ?? null) : null,
+    longitude: (draft.fulfillmentType ?? "DELIVERY") === "DELIVERY" ? (draft.longitude ?? null) : null,
     fulfillmentType: draft.fulfillmentType ?? "DELIVERY",
     tableNumber: (draft.fulfillmentType ?? "DELIVERY") === "DINE_IN" ? (draft.tableNumber ?? null) : null,
     customerNote: draft.customerNote.trim(),
@@ -58,6 +64,8 @@ export function isMatchingCashOrder(
     existing.customerName !== draft.customerName.trim() ||
     (existing.customerPhone ?? "") !== draft.customerPhone.trim() ||
     (existing.addressText ?? "") !== draft.addressText.trim() ||
+    (existing.latitude ?? null) !== (draft.latitude ?? null) ||
+    (existing.longitude ?? null) !== (draft.longitude ?? null) ||
     (existing.fulfillmentType ?? "DELIVERY") !== (draft.fulfillmentType ?? "DELIVERY") ||
     (existing.tableNumber ?? null) !== ((draft.fulfillmentType ?? "DELIVERY") === "DINE_IN" ? (draft.tableNumber ?? null) : null) ||
     (existing.customerNote ?? "") !== draft.customerNote.trim() ||

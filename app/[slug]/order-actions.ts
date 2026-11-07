@@ -5,6 +5,7 @@ import { db } from "@/app/lib/db";
 import { makeTrackingToken } from "@/app/lib/order-tracking";
 import { isFulfillmentType, isValidCustomerPhone, validateOrderDestination } from "@/app/lib/fulfillment";
 import { orderHistoryEnabled } from "@/app/lib/order-status-history";
+import { validateDeliveryCoordinates } from "@/app/lib/delivery-location";
 import {
   isMatchingCashOrder,
   isValidOrderAttemptId,
@@ -20,6 +21,8 @@ const REPLAY_SELECT = {
   customerName: true,
   customerPhone: true,
   addressText: true,
+  latitude: true,
+  longitude: true,
   fulfillmentType: true,
   tableNumber: true,
   customerNote: true,
@@ -68,6 +71,10 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
   const requestedType = input.fulfillmentType ?? "DELIVERY";
   if (!isFulfillmentType(requestedType)) return failure("Sifariş növü düzgün deyil.");
   const tableNumber = input.tableNumber ?? null;
+  const latitude: unknown = input.latitude ?? null;
+  const longitude: unknown = input.longitude ?? null;
+  const locationError = validateDeliveryCoordinates(requestedType, latitude, longitude);
+  if (locationError) return failure(locationError);
 
   if (
     !/^[a-z0-9-]{2,120}$/.test(slug) ||
@@ -109,8 +116,8 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
   // between two instances cannot insert two records with the same requestId.
   let validatedRestaurantId: string | null = null;
   const draft: CashOrderDraft = { slug, customerName: name, customerPhone: phone,
-    addressText: address, fulfillmentType: requestedType, tableNumber,
-    customerNote: note, items: input.items };
+    addressText: address, latitude: latitude as number | null, longitude: longitude as number | null,
+    fulfillmentType: requestedType, tableNumber, customerNote: note, items: input.items };
 
   const replay = async (restaurantId: string): Promise<Result | null> => {
     const previous = await db.order.findUnique({
@@ -191,6 +198,8 @@ export async function createCashOrder(input: CashOrderInput): Promise<Result> {
         fulfillmentType: requestedType,
         tableNumber: requestedType === "DINE_IN" ? tableNumber : null,
         addressText: address || null,
+        latitude: requestedType === "DELIVERY" ? latitude as number | null : null,
+        longitude: requestedType === "DELIVERY" ? longitude as number | null : null,
         customerNote: note || null,
         subtotal,
         deliveryFee: new Prisma.Decimal(0),

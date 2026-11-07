@@ -2,6 +2,8 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { createCashOrder } from "./order-actions";
+import DeliveryMapPicker from "./DeliveryMapPicker";
+import type { DeliveryCoordinates } from "@/app/lib/delivery-location";
 import { prepareCashOrderAttempt, clearCashOrderAttempt, type PendingCashOrderAttempt } from "@/app/lib/order-attempt-client";
 import type { CashOrderDraft } from "@/app/lib/order-idempotency";
 import type { FulfillmentType } from "@/app/lib/fulfillment";
@@ -16,6 +18,8 @@ import {
 export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = false }: { restaurant: any; webOrdersEnabled?: boolean }) {
   const [cart, setCart] = useState<{ item: any; quantity: number }[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryCoordinates | null>(null);
   const modes: FulfillmentType[] = [
     ...(restaurant.dineInEnabled && restaurant.tableCount > 0 ? ["DINE_IN" as const] : []),
     ...(restaurant.deliveryEnabled ? ["DELIVERY" as const] : []),
@@ -85,6 +89,8 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
       tableNumber: fulfillmentType === "DINE_IN" && formData.get("tableNumber")
         ? Number(formData.get("tableNumber")) : null,
       addressText: fulfillmentType === "DELIVERY" ? String(formData.get("addressText") ?? "") : "",
+      latitude: fulfillmentType === "DELIVERY" ? deliveryLocation?.latitude ?? null : null,
+      longitude: fulfillmentType === "DELIVERY" ? deliveryLocation?.longitude ?? null : null,
       customerNote: String(formData.get("customerNote") ?? ""),
       items: cart.map(({ item, quantity }) => ({ itemId: item.id, quantity })),
     };
@@ -354,6 +360,8 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                   value={fulfillmentType}
                   onChange={(event) => {
                     setFulfillmentType(event.target.value as FulfillmentType);
+                    setDeliveryLocation(null);
+                    setMapPickerOpen(false);
                     setCheckoutError("");
                   }}
                   required
@@ -411,17 +419,30 @@ export default function ClientRestaurantMenu({ restaurant, webOrdersEnabled = fa
                 />
               </label>
               {fulfillmentType === "DELIVERY" && (
-                <label className="block text-sm">
-                  Çatdırılma ünvanı
-                  <textarea
-                    name="addressText"
-                    required
-                    minLength={6}
-                    maxLength={300}
-                    rows={2}
-                    className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
-                  />
-                </label>
+                <>
+                  <label className="block text-sm">
+                    Çatdırılma ünvanı
+                    <textarea
+                      name="addressText"
+                      required
+                      minLength={6}
+                      maxLength={300}
+                      rows={2}
+                      placeholder="Küçə, bina, blok və mənzil"
+                      className="mt-1 w-full rounded-lg border border-zinc-600 bg-zinc-900 p-3"
+                    />
+                  </label>
+                  {!mapPickerOpen ? (
+                    <button type="button" disabled={submitting}
+                      onClick={() => setMapPickerOpen(true)}
+                      className="w-full rounded-lg border border-[#d4af37]/60 px-3 py-3 text-sm font-semibold text-[#e5c158] disabled:opacity-50">
+                      📍 Xəritədən çatdırılma yeri seç
+                    </button>
+                  ) : (
+                    <DeliveryMapPicker value={deliveryLocation}
+                      onChange={setDeliveryLocation} disabled={submitting} />
+                  )}
+                </>
               )}
               <label className="block text-sm">
                 Qeyd (istəyə bağlı)

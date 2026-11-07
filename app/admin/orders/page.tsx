@@ -7,6 +7,7 @@ import type { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from "@prisma/
 import { db } from "@/app/lib/db";
 import { FULFILLMENT_LABELS, orderDestinationLabel, isFulfillmentType } from "@/app/lib/fulfillment";
 import type { FulfillmentType } from "@/app/lib/fulfillment";
+import { deliveryMapUrl } from "@/app/lib/delivery-location";
 import { getAdminSession } from "@/app/lib/admin-auth";
 import { parseReportRange, MAX_REPORT_DAYS } from "@/app/lib/superadmin-report";
 import OrdersAutoRefresh from "./OrdersAutoRefresh";
@@ -702,10 +703,19 @@ async function OrdersContent({ searchParams }: OrdersPageProps) {
               )}
             </div>
             {order.fulfillmentType === "DELIVERY" && (
-              <p>
-                <strong>Ünvan:</strong>{" "}
-                {order.addressText || "Ünvan qeyd edilməyib"}
-              </p>
+              <div className="space-y-2">
+                <p>
+                  <strong>Ünvan:</strong>{" "}
+                  {order.addressText || "Ünvan qeyd edilməyib"}
+                </p>
+                {deliveryMapUrl(order.latitude, order.longitude) && (
+                  <a href={deliveryMapUrl(order.latitude, order.longitude) ?? undefined}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+                    📍 Müştərinin göndərdiyi məkanı xəritədə aç
+                  </a>
+                )}
+              </div>
             )}
 
             {order.customerNote && (
