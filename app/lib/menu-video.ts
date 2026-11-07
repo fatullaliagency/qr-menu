@@ -30,11 +30,12 @@ export function inspectMenuVideo(mimeType: string, bytes: Uint8Array): string | 
 export async function parseMenuVideoFile(
   input: FormDataEntryValue | null
 ): Promise<MenuVideoUpload | null> {
-  if (input === null) return null;
+  if (input === null || input === "") return null;
   if (typeof input === "string" || !("arrayBuffer" in input)) {
     throw new Error("Video faylı düzgün seçilməyib.");
   }
-  if (input.size === 0 && !input.name) return null;
+  // Empty file inputs can arrive with placeholder names in multipart encoders.
+  if (input.size === 0) return null;
   if (input.size > MAX_MENU_VIDEO_BYTES || input.size < 12) {
     throw new Error("Video faylının maksimum ölçüsü 2.5 MB-dır.");
   }

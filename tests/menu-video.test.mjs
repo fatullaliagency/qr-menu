@@ -33,6 +33,8 @@ test("Server-side File parsing uses validated bytes, never a user-supplied file 
   assert.deepEqual([...result.payload], [...mp4]);
   assert.equal(await parseMenuVideoFile(null), null);
   assert.equal(await parseMenuVideoFile(new File([], "", { type: "" })), null);
+  assert.equal(await parseMenuVideoFile(new File([], "blob", { type: "application/octet-stream" })), null);
+  assert.equal(await parseMenuVideoFile(""), null);
   await assert.rejects(parseMenuVideoFile("data:video/mp4;base64,AAAA"), /Video faylı/);
   await assert.rejects(parseMenuVideoFile(new File([webm], "bad.mp4", { type: "video/mp4" })), /quruluşu/);
 });

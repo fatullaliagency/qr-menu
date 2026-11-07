@@ -971,6 +971,18 @@ test("Chromium real browser: new order, PIN access, admin notification, tracking
     await rowFor().locator('label[for="edit_' + product.id + '"]').click();
     edit = rowFor().locator("form").last();
     await edit.getByRole("button", { name: "Videonu sil" }).click();
+    // React must commit removeVideo=1 before the Server Action reads FormData.
+    await admin.waitForFunction(() => {
+      const element = document.querySelector('input[name="removeVideo"][value="1"]');
+      return element !== null;
+    });
+    const removalFields = await edit.evaluate((form) => {
+      const data = new FormData(form);
+      const upload = data.get("videoFile");
+      return { removeVideo: data.get("removeVideo"), fileSize: upload instanceof File ? upload.size : null };
+    });
+    assert.equal(removalFields.removeVideo, "1");
+    assert.ok(removalFields.fileSize === 0 || removalFields.fileSize === null);
     await edit.getByRole("button", { name: /Yadda saxla/ }).click();
     await admin.getByText("CI Video Menu Product", { exact: true }).waitFor();
     let remaining = -1;
