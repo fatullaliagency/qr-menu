@@ -36,3 +36,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [ ] Data migration və rollback planı yoxlanıb; ayrıca production release razılığı alınıb.
 
 **Cari vəziyyət:** ayrı canlı otel test bazası və real cihaz qəbul testi təsdiqlənmədiyi üçün production release etmək olmaz.
+
+## Isolated staging enablement
+- [x] `qr-menu-hotel-staging` layihəsi yaradılıb və bütün modul flag-ləri qapalıdır.
+- [x] Yeni, boş database üçün explicit approval / DB-name / table-emptiness preflight skripti hazırlanıb.
+- [ ] Tam müstəqil PostgreSQL yaradılıb və `npm run hotel:test-db:init` yalnız onun üzərində icra edilib.
+- [ ] Otel layihəsinə encrypted database URL və ayrıca auth açarları bağlanıb.

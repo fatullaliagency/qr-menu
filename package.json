@@ -13,7 +13,8 @@
     "test:orders:db": "node --experimental-strip-types --test tests/integration/order-idempotency-db.test.mjs",
     "test:orders:http": "node --experimental-strip-types --test tests/integration/order-http-smoke.test.mjs",
     "test:orders:browser": "node --experimental-strip-types --test tests/integration/order-browser-e2e.test.mjs",
-    "test:orders:restore": "node --experimental-strip-types --test tests/integration/order-backup-restore.test.mjs"
+    "test:orders:restore": "node --experimental-strip-types --test tests/integration/order-backup-restore.test.mjs",
+    "hotel:test-db:init": "node --experimental-strip-types scripts/initialize-hotel-test-db.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
