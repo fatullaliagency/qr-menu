@@ -44,6 +44,12 @@ async function BillingContent() {
     <Link href="/hotel-admin" className="text-sm text-blue-700 underline">← Otel admin</Link>
     <h1 className="mt-2 text-2xl font-bold">{hotel.name} · Otaq hesabları</h1>
     <p className="mt-2 text-sm text-amber-900">Bu daxili qeydiyyatdır: bank ödənişi, pulun alınması və PMS sisteminə göndəriş həyata keçirilmir.</p>
+    <form action="/hotel-admin/billing/export" method="get" className="mt-4 flex flex-wrap items-end gap-3">
+     <label className="text-sm">Tarixdən (UTC)<input type="date" name="from" className="mt-1 block rounded border p-2"/></label>
+     <label className="text-sm">Tarixədək (UTC)<input type="date" name="to" className="mt-1 block rounded border p-2"/></label>
+     <button className="rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white">Otaq hesablarını CSV/Excel üçün ixrac et</button>
+    </form>
+    <p className="mt-2 text-xs text-zinc-600">Standart: son 30 gün. Maksimum 31 günlük dövr və 5000 qeyd. Bu fayl PMS-ə avtomatik ötürülmür.</p>
    </header>
    <div className="grid gap-3 sm:grid-cols-3">
     <p className="rounded-xl bg-white p-5">Gözləyən: <strong>{amount("PENDING")} ₼</strong></p>
@@ -57,6 +63,7 @@ async function BillingContent() {
      <span className="text-sm font-semibold">{charge.status==="APPROVED"?"Daxili təsdiq":charge.status==="VOID"?"Ləğv edildi":"Təsdiq gözləyir"}</span>
     </div>
     <p className="text-sm text-zinc-600">Sifariş: {charge.order.status} · {charge.order.department} · {charge.createdAt.toLocaleString("az-AZ",{timeZone:"Asia/Baku"})}</p>
+    <p className="text-xs text-zinc-500">Qalma dövrü: {charge.stayKey==="legacy"?"Əvvəlki qeyd (uzlaşdırılmalıdır)":charge.stayKey}</p>
     {canApproveHotelRoomCharge(charge.order.status,charge.status)&&<form action={decideHotelRoomCharge}>
       <input type="hidden" name="chargeId" value={charge.id}/><input type="hidden" name="decision" value="APPROVED"/>
       <button className="rounded-lg bg-emerald-800 px-4 py-2 font-medium text-white">Otaq hesabını təsdiqlə</button>

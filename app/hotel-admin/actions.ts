@@ -14,6 +14,7 @@ import {getHotelStaffSession,deleteHotelStaffSession} from "@/app/lib/hotel-staf
 import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
 import {hashRestaurantPin} from "@/app/lib/pin-security";
 import {canApproveHotelRoomCharge,canVoidHotelRoomCharge} from "@/app/lib/hotel-billing-policy";
+import {shouldRotateHotelRoomToken} from "@/app/lib/hotel-stay";
 
 const BAD_LOGIN="Otel və ya PİN yanlışdır.";
 export async function loginHotel(form:FormData):Promise<void>{
@@ -69,11 +70,20 @@ export async function setHotelRoomStatus(form:FormData):Promise<void>{
  const roomId=String(form.get("roomId")??"");
  const status=String(form.get("status")??"");
  if(!["VACANT","OCCUPIED","OUT_OF_SERVICE"].includes(status))throw new Error("Yanlış otaq statusu.");
- await db.hotelRoom.updateMany({
-  where:{id:roomId,hotelId},
-  data:{status:status as "VACANT"|"OCCUPIED"|"OUT_OF_SERVICE",
-   ...(status==="VACANT"?{qrNonce:randomUUID()}:{}),
-  },
+ await db.$transaction(async tx=>{
+  const current=await tx.hotelRoom.findFirst({
+   where:{id:roomId,hotelId},select:{status:true},
+  });
+  if(!current)throw new Error("Otaq tapılmadı.");
+  const next=status as "VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";
+  if(current.status===next)return;
+  const changed=await tx.hotelRoom.updateMany({
+   where:{id:roomId,hotelId,status:current.status},
+   data:{status:next,
+    ...(shouldRotateHotelRoomToken(current.status,next)?{qrNonce:randomUUID()}:{}),
+   },
+  });
+  if(changed.count!==1)throw new Error("Otağın statusu başqa yerdə dəyişdirilib.");
  });
  revalidatePath("/hotel-admin");
 }

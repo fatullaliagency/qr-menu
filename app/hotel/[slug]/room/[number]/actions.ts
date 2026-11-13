@@ -6,6 +6,7 @@ import {getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,parseHotelCart,validHotelRoomNumber,hotelCategoryDepartment} from "@/app/lib/hotel-validation";
 import {hotelRoomToken,verifyHotelRoomToken,hotelTrackingTokenFromRequest,hashHotelTrackingToken} from "@/app/lib/hotel-security";
 import {isHotelRequestUUIDv4,isMatchingHotelRequest} from "@/app/lib/hotel-guest-idempotency";
+import {hotelRoomStayKey} from "@/app/lib/hotel-stay";
 const MAX_CENTS=100_000_000;
 
 export async function createHotelGuestRequest(form:FormData):Promise<void> {
@@ -75,6 +76,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
    items:{create:items},
    charge:{create:{
     hotelId:hotel.id,roomId:room.id,
+    stayKey:hotelRoomStayKey(hotel.id,room.id,room.qrNonce),
     amount:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
     events:{create:{hotelId:hotel.id,toStatus:"PENDING" as const,actor:"GUEST"}},
    }},

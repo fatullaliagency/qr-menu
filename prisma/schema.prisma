@@ -396,6 +396,7 @@ model HotelRoomCharge {
   orderId     String                @unique
   order       HotelOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amount      Decimal               @db.Decimal(10, 2)
+  stayKey     String                @default("legacy") @db.VarChar(20)
   status      HotelRoomChargeStatus @default(PENDING)
   approvedAt  DateTime?              @db.Timestamp(3)
   approvedBy  String?                @db.VarChar(40)
@@ -404,6 +405,7 @@ model HotelRoomCharge {
 
   @@index([hotelId, status, createdAt])
   @@index([hotelId, roomId, status])
+  @@index([hotelId, roomId, stayKey])
 }
 
 model HotelRoomChargeEvent {

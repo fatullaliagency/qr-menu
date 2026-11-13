@@ -56,3 +56,10 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - Qonaq izləmə səhifəsində status hər 12 saniyədə yenilənir; istifadəçinin açıq razılığı olarsa brauzer Notification göstərir. Brauzer bağlı olanda push yoxdur, fiziki cihaz testi hələ aparılmayıb.
 
 - Eyni brauzerdə əməkdaş girişi menecer sessiyasını, menecer girişi isə əməkdaş sessiyasını ləğv edir. 401/403 bildiriş cavabından sonra şöbə ekranında yenidən giriş tələb olunur.
+
+## Qalma dövrü və əməliyyatların çıxarışı
+- Yeni otaq hesabı `stayKey` ilə otaq nömrəsi təkrar istifadə edildikdə fərqli qonaq qalma dövrlərinə ayrılır.
+- OCCUPIED otaq VACANT və ya OUT_OF_SERVICE statusuna keçəndə QR nonce yenilənir; yeni qonağa yenidən QR verilməlidir.
+- Əvvəlki hesablar `legacy` kimi işarələnir və avtomatik müəyyən qonağa bağlanmır.
+- Menecer `/hotel-admin/billing/export` üzərindən 31 günlük dövr üçün maksimum 5000 daxili hesab qeydini CSV kimi endirə bilər. Digər otelin məlumatları və qonaq PII-si ixrac edilmir.
+- CSV PMS-ə avtomatik inteqrasiya və ya bank ödənişinin təsdiqi deyil; məlumatı otelin daxili uçotuna uyğun əl ilə üzləşdirmək lazımdır.

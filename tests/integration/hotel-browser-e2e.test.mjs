@@ -129,6 +129,8 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   assert.equal(charges.filter(x=>x.status==="PENDING").length,2);
   assert.equal(charges.find(x=>x.orderId===byDept.get("KITCHEN")?.id)?.amount.toString(),"13");
   assert.equal(charges.filter(x=>x.events.length===1).length,2);
+  assert.equal(charges[0].stayKey.length,20);
+  assert.equal(charges[0].stayKey,charges[1].stayKey);
   assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id}}),0);
  });
 
