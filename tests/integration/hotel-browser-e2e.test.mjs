@@ -146,6 +146,7 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   assert.equal(kitchen.status,"ACCEPTED");
   assert.equal(await db.hotelOrderEvent.count({where:{hotelId:a.id,orderId:kitchen.id}}),2);
   await admin.goto(BASE+"/hotel-admin/panel/housekeeping");
+  await admin.getByText("CI Hotel Towel").waitFor({timeout:20000});
   assert.match(await admin.locator("body").innerText(),/CI Hotel Towel/);
   assert.doesNotMatch(await admin.locator("body").innerText(),/CI Hotel Soup/);
  });
@@ -160,6 +161,7 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
    await panel.getByRole("button",{name:"Daxil ol"}).click();
    await panel.getByRole("heading",{name:b.name}).waitFor({timeout:20000});
    await panel.goto(BASE+"/hotel-admin/panel/kitchen");
+   await panel.getByText("Hələ müraciət yoxdur.").waitFor({timeout:20000});
    assert.doesNotMatch(await panel.locator("body").innerText(),/CI Hotel Soup/);
    const api=await panel.evaluate(async()=>{
     const r=await fetch("/hotel-admin/notifications?department=KITCHEN");
