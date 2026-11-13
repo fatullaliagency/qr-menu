@@ -301,7 +301,17 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   const roomCard=admin.locator("article").filter({
    has:admin.getByRole("heading",{name:"Otaq № 101"})
   });
-  assert.equal(await roomCard.locator('option[value="VACANT"]').isDisabled(),true);
+  const outstanding=await db.hotelRoomCharge.findMany({
+   where:{hotelId:a.id,roomId:room.id,status:"PENDING"},
+   select:{stayKey:true,status:true}
+  });
+  const currentRoom=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+  const option=roomCard.locator('option[value="VACANT"]');
+  assert.equal(await option.isDisabled(),true,
+   "checkout option: "+(await option.evaluate(el=>el.outerHTML))+
+   " room="+currentRoom.status+" pending="+JSON.stringify(outstanding)+
+   " nonce="+currentRoom.qrNonce);
+
   await admin.goto(BASE+"/hotel-admin/billing");
   const chargeCard=admin.locator('[data-charge-id="'+towelCharge.id+'"]');
   await chargeCard.getByRole("button",{name:"Gözləyən qeydi ləğv et"}).click();
