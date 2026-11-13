@@ -9,6 +9,9 @@ CREATE TABLE "Hotel" (
  "slug" VARCHAR(60) NOT NULL UNIQUE, "branchName" VARCHAR(120),
  "phone" VARCHAR(30) NOT NULL, "email" VARCHAR(200),
  "address" VARCHAR(300), "roomCount" INTEGER NOT NULL DEFAULT 0,
+ "foodEnabled" BOOLEAN NOT NULL DEFAULT true,
+ "roomServiceEnabled" BOOLEAN NOT NULL DEFAULT true,
+ "extraEnabled" BOOLEAN NOT NULL DEFAULT true,
  "pinCode" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE "HotelRoom" (

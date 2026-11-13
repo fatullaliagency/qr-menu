@@ -253,6 +253,9 @@ model Hotel {
   email      String?  @db.VarChar(200)
   address    String?  @db.VarChar(300)
   roomCount  Int      @default(0)
+  foodEnabled Boolean @default(true)
+  roomServiceEnabled Boolean @default(true)
+  extraEnabled Boolean @default(true)
   pinCode    String
   createdAt  DateTime @default(now()) @db.Timestamp(3)
 

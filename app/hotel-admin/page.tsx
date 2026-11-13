@@ -4,7 +4,7 @@ import {getHotelSession,getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels} from "@/app/lib/hotel-validation";
 import {hotelRoomToken} from "@/app/lib/hotel-security";
 import {db} from "@/app/lib/db";
-import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService} from "./actions";
+import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService,setHotelDepartments} from "./actions";
 import RoomQRCode from "./RoomQRCode";
 export const metadata={title:"Otel admin paneli",robots:{index:false,follow:false}};
 type Props={searchParams:Promise<{error?:string|string[]}>};
@@ -52,6 +52,15 @@ async function Panel({searchParams}:Props){
       {hotelDepartmentLabels[d]}<span className="mt-2 block text-sm font-normal">Aktiv müraciətlər: {deptCounts[d]??0}</span>
     </Link>)}
    </nav>
+   <section className="space-y-3 rounded-xl bg-white p-5">
+    <h2 className="text-xl font-bold">Aktiv xidmət bölmələri</h2>
+    <form action={setHotelDepartments} className="flex flex-wrap items-center gap-4">
+     <label><input name="foodEnabled" type="checkbox" defaultChecked={hotel.foodEnabled}/> Yemək-içki</label>
+     <label><input name="roomServiceEnabled" type="checkbox" defaultChecked={hotel.roomServiceEnabled}/> Otaq xidməti</label>
+     <label><input name="extraEnabled" type="checkbox" defaultChecked={hotel.extraEnabled}/> Əlavə xidmətlər</label>
+     <button className="rounded-lg bg-zinc-900 px-4 py-2 text-white">Yadda saxla</button>
+    </form>
+   </section>
    <section className="space-y-4 rounded-xl bg-white p-5">
     <h2 className="text-xl font-bold">Otaqlar və QR kodları</h2>
     <p className="text-sm text-amber-900">Otaq yalnız “Dolu” olduqda qonaq sifariş verə bilər. “Boş” statusuna keçid əvvəlki QR tokenini ləğv edir: yeni QR-ni çap edin.</p>

@@ -117,3 +117,13 @@ export async function advanceHotelOrder(form:FormData):Promise<void>{
  revalidatePath("/hotel-admin/panel/"+department.toLowerCase());
  revalidatePath("/hotel-admin");
 }
+
+export async function setHotelDepartments(form:FormData):Promise<void>{
+ const hotelId=await managerHotelId();
+ const food=form.get("foodEnabled")==="on";
+ const room=form.get("roomServiceEnabled")==="on";
+ const extra=form.get("extraEnabled")==="on";
+ if(!food&&!room&&!extra)throw new Error("Ən azı bir xidmət bölməsi seçilməlidir.");
+ await db.hotel.update({where:{id:hotelId},data:{foodEnabled:food,roomServiceEnabled:room,extraEnabled:extra}});
+ revalidatePath("/hotel-admin");
+}

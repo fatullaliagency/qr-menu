@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { db } from "@/app/lib/db";
+import { hotelModuleEnabled } from "@/app/lib/hotel-validation";
 import {
   hasSuperAdminSession,
   isSuperAdminEnabled,
@@ -13,7 +14,7 @@ export const metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ error?: string | string[]; q?: string | string[] }>;
+  searchParams: Promise<{ error?: string | string[]; q?: string | string[]; type?: string | string[] }>;
 };
 
 export default function SuperAdminPage(props: Props) {
@@ -150,7 +151,19 @@ async function SuperAdminContent({ searchParams }: Props) {
   const query = await searchParams;
   const search = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
   const normalized = search.toLocaleLowerCase("az-AZ");
-  const visibleRestaurants = normalized
+  const type=query.type==="hotel"?"hotel":query.type==="restaurant"?"restaurant":"all";
+  const hotels=hotelModuleEnabled()
+    ? await db.hotel.findMany({orderBy:{name:"asc"},
+       select:{id:true,name:true,slug:true,branchName:true,roomCount:true}})
+    : [];
+  const hotelGroups=hotelModuleEnabled()?await db.hotelOrder.groupBy({
+    by:["hotelId"],_count:{_all:true},
+  }):[];
+  const visibleHotels=(type==="restaurant"?[]:hotels).filter(h=>
+    !normalized||h.name.toLocaleLowerCase("az-AZ").includes(normalized)||
+    h.slug.toLocaleLowerCase("az-AZ").includes(normalized));
+
+  const visibleRestaurants = type==="hotel"?[]:normalized
     ? overview.filter((restaurant) =>
         restaurant.name.toLocaleLowerCase("az-AZ").includes(normalized) ||
         restaurant.slug.toLocaleLowerCase("az-AZ").includes(normalized)
@@ -164,15 +177,15 @@ async function SuperAdminContent({ searchParams }: Props) {
           <div>
             <h1 className="text-2xl font-bold">QR Menü — Super Admin</h1>
             <p className="text-sm text-zinc-600">
-              Bütün restoranların yalnız oxunan sifariş icmalı
+              Restoran və otellərin vahid idarəetmə icmalı
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href="/superadmin/restaurants/new"
+              href="/superadmin/new"
               className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
             >
-              + Yeni restoran
+              + Yeni müəssisə
             </Link>
             <form action={logoutSuperAdmin}>
               <button
@@ -184,7 +197,7 @@ async function SuperAdminContent({ searchParams }: Props) {
             </form>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">\n          {hotelModuleEnabled()&&<div className="rounded-xl bg-white p-5 shadow-sm"><p className="text-sm text-zinc-600">Otel sayı</p><p className="text-3xl font-bold">{hotels.length}</p></div>}
           <div className="rounded-xl bg-white p-5 shadow-sm">
             <p className="text-sm text-zinc-600">Restoran sayı</p>
             <p className="text-3xl font-bold">{restaurants.length}</p>
@@ -211,7 +224,7 @@ async function SuperAdminContent({ searchParams }: Props) {
           <form action="/superadmin" method="get" role="search"
             className="mb-3 flex flex-wrap items-end gap-3">
             <label htmlFor="restaurant-search" className="flex-1 text-sm font-medium">
-              Restoran adı və ya URL adına görə axtar
+              Müəssisə adı və ya URL adına görə axtar
               <input id="restaurant-search" type="search" name="q"
                 maxLength={80} defaultValue={search}
                 placeholder="Məsələn: testrestoran"
@@ -226,15 +239,15 @@ async function SuperAdminContent({ searchParams }: Props) {
               Sıfırla
             </Link>
           </form>
-          {search && (
+          {(search||type!=="all") && (
             <p role="status" className="mb-3 text-sm text-zinc-600">
-              Axtarış nəticəsi: {visibleRestaurants.length} / {restaurants.length} restoran
+              Axtarış nəticəsi: {visibleRestaurants.length+visibleHotels.length} müəssisə
             </p>
           )}
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
               <tr className="border-b text-zinc-600">
-                <th className="p-3">Restoran</th>
+                <th className="p-3">Restoran</th>\n                <th className="p-3">Tip</th>
                 <th className="p-3">Kateqoriya</th>
                 <th className="p-3">Məhsul</th>
                 <th className="p-3">Cəmi sifariş</th>
@@ -283,7 +296,7 @@ async function SuperAdminContent({ searchParams }: Props) {
                       Restoranı düzəlt
                     </Link>
                   </td>
-                  <td className="p-3">{restaurant.categoryCount}</td>
+                  <td className="p-3">Restoran</td>\n                  <td className="p-3">{restaurant.categoryCount}</td>
                   <td className="p-3">{restaurant.menuItemCount}</td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
@@ -300,6 +313,22 @@ async function SuperAdminContent({ searchParams }: Props) {
             </p>
           )}
         </section>
+        {hotelModuleEnabled()&&<section className="overflow-x-auto rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold">Otellər</h2>
+            <Link href="/superadmin/hotels/new" className="text-sm text-blue-700 underline">Yeni otel yarat</Link>
+          </div>
+          <table className="mt-4 w-full text-left text-sm">
+            <thead><tr className="border-b"><th className="p-3">Müəssisə</th><th className="p-3">Tip</th><th className="p-3">Otaqlar</th><th className="p-3">Sifarişlər</th><th className="p-3">Admin</th></tr></thead>
+            <tbody>{visibleHotels.map(h=><tr key={h.id} className="border-b">
+              <td className="p-3"><strong>{h.name}</strong><span className="block text-xs text-zinc-500">{h.branchName} · {h.slug}</span></td>
+              <td className="p-3">Otel</td><td className="p-3">{h.roomCount}</td>
+              <td className="p-3">{hotelGroups.find(g=>g.hotelId===h.id)?._count._all??0}</td>
+              <td className="p-3"><Link className="text-blue-700 underline" href="/hotel-admin">Otel paneli</Link></td>
+            </tr>)}</tbody>
+          </table>
+          {visibleHotels.length===0&&<p className="mt-3 text-sm text-zinc-500">Bu seçim üzrə otel tapılmadı.</p>}
+        </section>}
       </div>
     </main>
   );

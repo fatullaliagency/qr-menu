@@ -18,7 +18,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  if(!/^[a-z0-9-]{3,60}$/.test(slug)||!validHotelRoomNumber(roomNumber)||
    !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(requestId)||
    note.length>500||!lines)throw new Error("Sifariş məlumatları düzgün deyil.");
- const hotel=await db.hotel.findUnique({where:{slug},select:{id:true}});
+ const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true}});
  if(!hotel)throw new Error("Otel tapılmadı.");
  const room=await db.hotelRoom.findFirst({
   where:{hotelId:hotel.id,number:roomNumber},
@@ -47,7 +47,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  let grandCents=0;
  for(const line of lines){
   const s=lookup.get(line.serviceId);
-  if(!s||s.department!==hotelCategoryDepartment(s.category))throw new Error("Xidmətin şöbəsi yanlışdır.");
+  if(!s||!({FOOD:hotel.foodEnabled,ROOM_SERVICE:hotel.roomServiceEnabled,EXTRA:hotel.extraEnabled}[s.category])||s.department!==hotelCategoryDepartment(s.category))throw new Error("Xidmətin şöbəsi yanlışdır.");
   const cents=Math.round(Number(s.price)*100);
   const amount=cents*line.quantity;
   if(!Number.isSafeInteger(cents)||cents<0||cents>MAX_CENTS||

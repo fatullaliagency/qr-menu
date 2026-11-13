@@ -14,7 +14,7 @@ export default async function HotelGuestRoomPage({params,searchParams}:{
  const [{slug,number},query]=await Promise.all([params,searchParams]);
  const token=typeof query.t==="string"?query.t:"";
  const hotel=await db.hotel.findUnique({
-  where:{slug},select:{id:true,name:true,branchName:true},
+  where:{slug},select:{id:true,name:true,branchName:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true},
  });
  if(!hotel)notFound();
  const room=await db.hotelRoom.findFirst({
@@ -23,7 +23,7 @@ export default async function HotelGuestRoomPage({params,searchParams}:{
  });
  if(!room||!verifyHotelRoomToken(getHotelSecret(),hotel.id,room.id,room.qrNonce,token))notFound();
  const services=room.status==="OCCUPIED"? await db.hotelService.findMany({
-  where:{hotelId:hotel.id,active:true},orderBy:[{category:"asc"},{name:"asc"}],
+  where:{hotelId:hotel.id,active:true,category:{in:[...(hotel.foodEnabled?["FOOD" as const]:[]),...(hotel.roomServiceEnabled?["ROOM_SERVICE" as const]:[]),...(hotel.extraEnabled?["EXTRA" as const]:[])]}},orderBy:[{category:"asc"},{name:"asc"}],
   select:{id:true,name:true,description:true,category:true,price:true},
  }):[];
  return <main className="min-h-screen bg-zinc-100 px-4 py-7 text-zinc-900">
