@@ -301,16 +301,13 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   const roomCard=admin.locator("article").filter({
    has:admin.getByRole("heading",{name:"Otaq № 101"})
   });
-  const outstanding=await db.hotelRoomCharge.findMany({
-   where:{hotelId:a.id,roomId:room.id,status:"PENDING"},
-   select:{stayKey:true,status:true}
+  const outstanding=await db.hotelRoomCharge.count({
+   where:{hotelId:a.id,roomId:room.id,status:"PENDING"}
   });
-  const currentRoom=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
-  const option=roomCard.locator('option[value="VACANT"]');
-  assert.equal(await option.isDisabled(),true,
-   "checkout option: "+(await option.evaluate(el=>el.outerHTML))+
-   " room="+currentRoom.status+" pending="+JSON.stringify(outstanding)+
-   " nonce="+currentRoom.qrNonce);
+  assert.equal(outstanding,1);
+  // Native OPTION disabled="" is authoritative; Playwright isDisabled() can
+  // report false for an option when the parent SELECT itself is enabled.
+  assert.notEqual(await roomCard.locator('option[value="VACANT"]').getAttribute("disabled"),null);
 
   await admin.goto(BASE+"/hotel-admin/billing");
   const chargeCard=admin.locator('[data-charge-id="'+towelCharge.id+'"]');
@@ -318,7 +315,7 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   await chargeCard.getByText("Ləğv edildi",{exact:true}).waitFor({timeout:20000});
   await admin.goto(BASE+"/hotel-admin");
   const active=admin.locator("article").filter({has:admin.getByRole("heading",{name:"Otaq № 101"})});
-  assert.equal(await active.locator('option[value="VACANT"]').isDisabled(),false);
+  assert.equal(await active.locator('option[value="VACANT"]').getAttribute("disabled"),null);
   await active.locator('select[name="status"]').selectOption("VACANT");
   await active.getByRole("button",{name:"Yadda saxla"}).click();
   let latest;
