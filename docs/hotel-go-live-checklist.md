@@ -42,3 +42,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [x] Yeni, boş database üçün explicit approval / DB-name / table-emptiness preflight skripti hazırlanıb.
 - [ ] Tam müstəqil PostgreSQL yaradılıb və `npm run hotel:test-db:init` yalnız onun üzərində icra edilib.
 - [ ] Otel layihəsinə encrypted database URL və ayrıca auth açarları bağlanıb.
+
+## Əlavə CI qəbul testləri
+- [x] Chromium ilə end-to-end qonaq QR, sifariş, RBAC, checkout, otaq hesabı və CSV yoxlaması.
+- [ ] WebKit (iOS Safari-yə yaxın mühərrik) ilə eyni ssenarilərin disposable PostgreSQL üzərində CI sınağı — yeni workflow nəticəsini gözləyir.
+- [ ] Otelin bütün əməliyyat cədvəllərindən pg_dump, yeni PostgreSQL-ə pg_restore və 10 cədvəl üzrə məlumat bütövlüyü — yeni workflow nəticəsini gözləyir.
+- [ ] Bu testlər real iPhone/Android cihazları və real otel qəbul aktını əvəz etmir.

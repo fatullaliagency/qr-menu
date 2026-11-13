@@ -55,9 +55,34 @@ jobs:
         run: npx tsc --noEmit
       - name: Next.js build
         run: npm run build
-      - name: Install disposable Chromium browser test tools
+      - name: Install disposable Chromium and WebKit test browsers
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: End-to-end hotel QR, guest, departments and isolation in Chromium
         run: node --experimental-strip-types --test tests/integration/hotel-browser-e2e.test.mjs
+      - name: iOS-like WebKit test of guest QR, staff isolation and folio
+        run: HOTEL_E2E_BROWSER=webkit node --experimental-strip-types --test tests/integration/hotel-browser-e2e.test.mjs
+      - name: Seed disposable hotel folio for independent backup restoration
+        run: node --experimental-strip-types scripts/seed-hotel-restore-ci.mjs
+      - name: Verify hotel backup and independent PostgreSQL restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qr-hotel-ci-backup"
+          trap 'rm -rf "$RUNNER_TEMP/qr-hotel-ci-backup"' EXIT
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$RUNNER_TEMP/qr-hotel-ci-backup:/backups" \
+            postgres:16-alpine pg_dump --host=127.0.0.1 --username=postgres \
+            --dbname=qr_hotel_ci --format=custom --no-owner \
+            --file=/backups/qr-hotel-ci.backup
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            postgres:16-alpine psql --host=127.0.0.1 --username=postgres \
+            --dbname=postgres --set=ON_ERROR_STOP=1 \
+            --command='CREATE DATABASE qr_hotel_restore_ci'
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$RUNNER_TEMP/qr-hotel-ci-backup:/backups" \
+            postgres:16-alpine pg_restore --host=127.0.0.1 --username=postgres \
+            --dbname=qr_hotel_restore_ci --no-owner --exit-on-error \
+            /backups/qr-hotel-ci.backup
+          node --experimental-strip-types --test tests/integration/hotel-backup-restore-ci.test.mjs

@@ -4,7 +4,7 @@ import { randomBytes, randomUUID, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import { spawn } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 import { hotelRoomToken } from "../../app/lib/hotel-security.ts";
 
 const EXPECTED="postgresql://postgres:postgres@127.0.0.1:5432/qr_hotel_ci";
@@ -14,6 +14,8 @@ if(process.env.QR_MENU_EPHEMERAL_DB_TEST!=="true" ||
    (process.env.ADMIN_SESSION_SECRET?.length??0)<32)
   throw new Error("Hotel browser test is allowed only against disposable local CI database.");
 const BASE="http://127.0.0.1:3199";
+const BROWSER=process.env.HOTEL_E2E_BROWSER||"chromium";
+if(!["chromium","webkit"].includes(BROWSER))throw new Error("Unknown hotel test browser.");
 const scrypt=promisify(scryptCallback);
 async function hash(pin){
  const salt=randomBytes(16),derived=await scrypt(pin,salt,64);
@@ -30,7 +32,7 @@ async function ready(proc,getLogs){
  }
  throw new Error("Hotel Next start timeout: "+getLogs());
 }
-test("Chromium: hotel room QR, guest cart, department status and hotel isolation",{
+test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation",{
  timeout:300000,
 },async t=>{
  const db=new PrismaClient();
@@ -38,7 +40,13 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
  let server,browser,logs="";
  t.after(async()=>{
   if(browser)await browser.close();
-  if(server?.exitCode===null)server.kill("SIGTERM");
+  if(server?.exitCode===null){
+   server.kill("SIGTERM");
+   await Promise.race([
+    new Promise(resolve=>server.once("exit",resolve)),
+    new Promise(resolve=>setTimeout(resolve,2500)),
+   ]);
+  }
   try{if(hotelIds.length)await db.hotel.deleteMany({where:{id:{in:hotelIds}}});}
   finally{await db.$disconnect();}
  });
@@ -67,7 +75,9 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
  for(const stream of [server.stdout,server.stderr])
   stream.on("data",bytes=>{logs=(logs+bytes.toString()).slice(-6000)});
  await ready(server,()=>logs);
- browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
+ browser=await (BROWSER==="webkit"?webkit:chromium).launch(
+  BROWSER==="chromium"?{headless:true,args:["--no-sandbox"]}:{headless:true}
+ );
  const adminCtx=await browser.newContext({extraHTTPHeaders:{"x-vercel-forwarded-for":"127.0.0.1"}});
  const admin=await adminCtx.newPage();
  const guestCtx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
