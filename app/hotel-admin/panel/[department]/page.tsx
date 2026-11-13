@@ -1,3 +1,4 @@
+import {Suspense} from "react";
 import {notFound,redirect} from "next/navigation";
 import {connection} from "next/server";
 import Link from "next/link";
@@ -7,7 +8,12 @@ import {hotelModuleEnabled,hotelDepartmentLabels,hotelStatusLabels,isHotelDepart
 import {advanceHotelOrder} from "../../actions";
 import HotelOrderWatcher from "../../HotelOrderWatcher";
 export const metadata={title:"Otel şöbə sifarişləri",robots:{index:false,follow:false}};
-export default async function HotelDepartmentPage({params}:{
+export default function HotelDepartmentPage(props:{
+ params:Promise<{department:string}>
+}){
+ return <Suspense fallback={<main className="p-8">Şöbə sifarişləri yüklənir...</main>}><DepartmentContent {...props}/></Suspense>;
+}
+async function DepartmentContent({params}:{
  params:Promise<{department:string}>
 }){
  if(!hotelModuleEnabled())notFound();

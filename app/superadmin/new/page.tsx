@@ -1,9 +1,13 @@
 import Link from "next/link";
+import {Suspense} from "react";
 import {redirect} from "next/navigation";
 import {hasSuperAdminSession} from "@/app/lib/superadmin-auth";
 import {hotelModuleEnabled} from "@/app/lib/hotel-validation";
 export const metadata={title:"Yeni müəssisə",robots:{index:false,follow:false}};
-export default async function NewEnterprisePage(){
+export default function NewEnterprisePage(){
+ return <Suspense fallback={<main className="p-8">Yüklənir...</main>}><NewEnterpriseContent/></Suspense>;
+}
+async function NewEnterpriseContent(){
  if(!(await hasSuperAdminSession()))redirect("/superadmin");
  return <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
   <div className="mx-auto max-w-xl space-y-5 rounded-xl bg-white p-6">

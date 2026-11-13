@@ -1,3 +1,4 @@
+import {Suspense} from "react";
 import {notFound} from "next/navigation";
 import {connection} from "next/server";
 import {db} from "@/app/lib/db";
@@ -6,7 +7,12 @@ import {hotelModuleEnabled} from "@/app/lib/hotel-validation";
 import {verifyHotelRoomToken} from "@/app/lib/hotel-security";
 import ClientHotelCart from "./ClientHotelCart";
 export const metadata={title:"Otel qonaq xidmətləri",robots:{index:false,follow:false},referrer:"no-referrer"};
-export default async function HotelGuestRoomPage({params,searchParams}:{
+export default function HotelGuestRoomPage(props:{
+ params:Promise<{slug:string;number:string}>;searchParams:Promise<{t?:string|string[]}>
+}){
+ return <Suspense fallback={<main className="p-8">Otel xidmətləri yüklənir...</main>}><GuestRoomContent {...props}/></Suspense>;
+}
+async function GuestRoomContent({params,searchParams}:{
  params:Promise<{slug:string;number:string}>;searchParams:Promise<{t?:string|string[]}>
 }){
  if(!hotelModuleEnabled())notFound();

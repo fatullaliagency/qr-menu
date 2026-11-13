@@ -1,3 +1,4 @@
+import {Suspense} from "react";
 import {notFound} from "next/navigation";
 import {connection} from "next/server";
 import {db} from "@/app/lib/db";
@@ -5,7 +6,12 @@ import {hotelModuleEnabled,hotelDepartmentLabels} from "@/app/lib/hotel-validati
 import {verifyHotelTrackingToken} from "@/app/lib/hotel-security";
 import LiveHotelStatus from "./LiveHotelStatus";
 export const metadata={title:"Otel sifarişini izlə",robots:{index:false,follow:false},referrer:"no-referrer"};
-export default async function HotelTrackPage({params,searchParams}:{
+export default function HotelTrackPage(props:{
+ params:Promise<{slug:string;id:string}>;searchParams:Promise<{t?:string|string[]}>
+}){
+ return <Suspense fallback={<main className="p-8">Sifariş yüklənir...</main>}><TrackContent {...props}/></Suspense>;
+}
+async function TrackContent({params,searchParams}:{
  params:Promise<{slug:string;id:string}>;searchParams:Promise<{t?:string|string[]}>
 }){
  if(!hotelModuleEnabled())notFound();
