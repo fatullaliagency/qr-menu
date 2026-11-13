@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { db } from "@/app/lib/db";
 import { hotelModuleEnabled } from "@/app/lib/hotel-validation";
 import { parseEnterpriseFilters, matchesEnterpriseSearch } from "@/app/lib/enterprise-filters";
@@ -160,6 +161,14 @@ async function SuperAdminContent({ searchParams }: Props) {
   const hotelGroups = hotelEnabled
     ? await db.hotelOrder.groupBy({ by: ["hotelId"], _count: { _all: true } })
     : [];
+  const hotelCharges = hotelEnabled
+    ? await db.hotelRoomCharge.groupBy({
+        by: ["hotelId", "status"], _count: { _all: true }, _sum: { amount: true }
+      })
+    : [];
+  const approvedHotelChargeAmount = hotelCharges
+    .filter(x => x.status === "APPROVED")
+    .reduce((sum, x) => sum.add(x._sum.amount ?? new Prisma.Decimal(0)), new Prisma.Decimal(0));
 
   const visibleHotels = type === "restaurant"
     ? []
@@ -197,6 +206,14 @@ async function SuperAdminContent({ searchParams }: Props) {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {hotelModuleEnabled()&&<div className="rounded-xl bg-white p-5 shadow-sm"><p className="text-sm text-zinc-600">Otel sayı</p><p className="text-3xl font-bold">{hotels.length}</p></div>}
+          {hotelEnabled&&<div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Otel sifarişlərinin sayı</p>
+            <p className="text-3xl font-bold">{hotelGroups.reduce((n,x)=>n+x._count._all,0)}</p>
+          </div>}
+          {hotelEnabled&&<div className="rounded-xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-zinc-600">Otel: təsdiqli daxili otaq hesabı (bank gəliri deyil)</p>
+            <p className="text-3xl font-bold">{approvedHotelChargeAmount.toFixed(2)} ₼</p>
+          </div>}
           <div className="rounded-xl bg-white p-5 shadow-sm">
             <p className="text-sm text-zinc-600">Restoran sayı</p>
             <p className="text-3xl font-bold">{restaurants.length}</p>
@@ -335,11 +352,13 @@ async function SuperAdminContent({ searchParams }: Props) {
             <Link href="/superadmin/hotels/new" className="text-sm text-blue-700 underline">Yeni otel yarat</Link>
           </div>
           <table className="mt-4 w-full text-left text-sm">
-            <thead><tr className="border-b"><th className="p-3">Müəssisə</th><th className="p-3">Tip</th><th className="p-3">Otaqlar</th><th className="p-3">Sifarişlər</th><th className="p-3">Admin</th></tr></thead>
+            <thead><tr className="border-b"><th className="p-3">Müəssisə</th><th className="p-3">Tip</th><th className="p-3">Otaqlar</th><th className="p-3">Sifarişlər</th><th className="p-3">Daxili təsdiq (₼)</th><th className="p-3">Admin</th></tr></thead>
             <tbody>{visibleHotels.map(h=><tr key={h.id} className="border-b">
               <td className="p-3"><strong>{h.name}</strong><span className="block text-xs text-zinc-500">{h.branchName} · {h.slug}</span></td>
               <td className="p-3">Otel</td><td className="p-3">{h.roomCount}</td>
               <td className="p-3">{hotelGroups.find(g=>g.hotelId===h.id)?._count._all??0}</td>
+              <td className="p-3">{hotelCharges.filter(g=>g.hotelId===h.id&&g.status==="APPROVED")
+                .reduce((sum,g)=>sum.add(g._sum.amount??new Prisma.Decimal(0)),new Prisma.Decimal(0)).toFixed(2)}</td>
               <td className="p-3"><Link className="text-blue-700 underline" href="/hotel-admin">Otel paneli</Link></td>
             </tr>)}</tbody>
           </table>

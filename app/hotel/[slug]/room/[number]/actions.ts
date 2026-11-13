@@ -68,6 +68,11 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
    note:note||null,total:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
    roomCharge:true,
    items:{create:items},
+   charge:{create:{
+    hotelId:hotel.id,roomId:room.id,
+    amount:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
+    events:{create:{hotelId:hotel.id,toStatus:"PENDING" as const,actor:"GUEST"}},
+   }},
    events:{create:{hotelId:hotel.id,toStatus:"NEW" as const,actor:"GUEST"}},
   }))},
  }});

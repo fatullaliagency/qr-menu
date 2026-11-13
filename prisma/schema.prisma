@@ -265,6 +265,8 @@ model Hotel {
   orders   HotelOrder[]
   events   HotelOrderEvent[]
   staff    HotelStaff[]
+  charges HotelRoomCharge[]
+  chargeEvents HotelRoomChargeEvent[]
 }
 
 model HotelRoom {
@@ -277,6 +279,7 @@ model HotelRoom {
   createdAt DateTime        @default(now()) @db.Timestamp(3)
 
   requests HotelGuestRequest[]
+  charges  HotelRoomCharge[]
 
   @@unique([hotelId, number])
   @@index([hotelId, status])
@@ -328,6 +331,7 @@ model HotelOrder {
   updatedAt     DateTime           @updatedAt
   items         HotelOrderItem[]
   events        HotelOrderEvent[]
+  charge        HotelRoomCharge?
 
   @@index([hotelId, department, status, createdAt])
   @@index([hotelId, createdAt])
@@ -374,4 +378,44 @@ model HotelStaff {
 
   @@unique([hotelId, username])
   @@index([hotelId, department, active])
+}
+
+/** Internal hotel room-folio ledger, NOT a payment transaction or external PMS posting. */
+enum HotelRoomChargeStatus {
+  PENDING
+  APPROVED
+  VOID
+}
+
+model HotelRoomCharge {
+  id          String                @id @default(cuid())
+  hotelId     String
+  hotel       Hotel                 @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomId      String
+  room        HotelRoom             @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  orderId     String                @unique
+  order       HotelOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount      Decimal               @db.Decimal(10, 2)
+  status      HotelRoomChargeStatus @default(PENDING)
+  approvedAt  DateTime?              @db.Timestamp(3)
+  approvedBy  String?                @db.VarChar(40)
+  createdAt   DateTime               @default(now()) @db.Timestamp(3)
+  events      HotelRoomChargeEvent[]
+
+  @@index([hotelId, status, createdAt])
+  @@index([hotelId, roomId, status])
+}
+
+model HotelRoomChargeEvent {
+  id         String                @id @default(cuid())
+  hotelId    String
+  hotel      Hotel                 @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  chargeId   String
+  charge     HotelRoomCharge       @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  fromStatus HotelRoomChargeStatus?
+  toStatus   HotelRoomChargeStatus
+  actor      String                @db.VarChar(40)
+  createdAt  DateTime              @default(now()) @db.Timestamp(3)
+
+  @@index([hotelId, chargeId, createdAt])
 }

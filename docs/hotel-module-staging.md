@@ -41,3 +41,11 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - HotelStaff modeli ayrıca hotelId üzərində unique username və şöbə icazəsi saxlayır.
 - CI-də fərdi əməkdaş login, başqa şöbə rəddi, menecer UI rəddi və deaktivasiya yoxlanılır.
 - DB migrasiyası yalnız disposable `qr_hotel_ci` üzərində avtomatik işlədilir; real otel/PMS mühitinə tətbiq edilməyib.
+
+## Otaq hesablaşması — daxili ledger, POS/PMS deyil
+- Hər yeni HotelOrder ilə eyni tranzaksiyada bir HotelRoomCharge PENDING yaradılır (orderId UNIQUE), bütün status dəyişmələri HotelRoomChargeEvent-a yazılır.
+- Yalnız menecer /hotel-admin/billing vasitəsilə COMPLETED sifariş üçün APPROVED (daxili təsdiq) edə bilər; PENDING qeydi VOID etmək mümkündür.
+- Qiymət serverdə müəyyən edilir; digər otelin ID-si və əməkdaş sessiyası ilə otaq hesabına müdaxilə qadağandır.
+- APPROVED pulun ödənildiyini göstərmir. Xarici PMS/ödəmə API-ləri və real məxaric/ödəniş təsdiqləri hələ yoxdur.
+- Mövcud köhnə otel sifarişləri üçün avtomatik ledger backfill edilməyib; miqrasiya öncəsi ayrıca inventar/reconciliation lazımdır.
+- Superadmin otellərin daxili təsdiqli hesab məbləğini restoranın PAID gəlirindən ayrıca göstərir.

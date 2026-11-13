@@ -53,6 +53,7 @@ async function Panel({searchParams}:Props){
     </Link>)}
    </nav>
 
+   <p className="rounded-xl bg-white p-5"><Link className="font-semibold text-blue-700 underline" href="/hotel-admin/billing">Otaq hesabları və daxili təsdiqlər →</Link></p>
    <section className="space-y-4 rounded-xl bg-white p-5">
     <h2 className="text-xl font-bold">Əməkdaş hesabları və şöbə icazələri</h2>
     <p className="text-sm text-zinc-600">Hər əməkdaş öz istifadəçi adı və PİN-i ilə /hotel-staff səhifəsindən daxil olur. Ümumi menecer PİN-ini paylaşmayın.</p>

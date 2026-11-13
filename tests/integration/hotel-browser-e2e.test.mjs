@@ -123,6 +123,13 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   assert.equal(byDept.get("KITCHEN")?.items[0]?.serviceId,food.id);
   assert.equal(byDept.get("HOUSEKEEPING")?.items[0]?.serviceId,towel.id);
   assert.equal(await db.hotelOrder.count({where:{hotelId:b.id}}),0);
+  const charges=await db.hotelRoomCharge.findMany({where:{hotelId:a.id},
+   include:{events:true,order:{select:{status:true}}}});
+  assert.equal(charges.length,2);
+  assert.equal(charges.filter(x=>x.status==="PENDING").length,2);
+  assert.equal(charges.find(x=>x.orderId===byDept.get("KITCHEN")?.id)?.amount.toString(),"13");
+  assert.equal(charges.filter(x=>x.events.length===1).length,2);
+  assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id}}),0);
  });
 
  await t.test("Guest tracking token protects order status from other hotels",async()=>{
@@ -174,6 +181,28 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
  });
 
 
+
+ await t.test("Manager may approve a completed internal charge, not pending service or bank payment",async()=>{
+  const kitchenOrder=await db.hotelOrder.findFirstOrThrow({where:{hotelId:a.id,department:"KITCHEN"}});
+  const foodCharge=await db.hotelRoomCharge.findUniqueOrThrow({where:{orderId:kitchenOrder.id}});
+  await admin.goto(BASE+"/hotel-admin/billing");
+  await admin.getByRole("heading",{name:/Otaq hesabları/}).waitFor({timeout:20000});
+  assert.equal(await admin.locator('[data-charge-id="'+foodCharge.id+'"] button').filter({hasText:"Otaq hesabını təsdiqlə"}).count(),0);
+  await db.hotelOrder.updateMany({where:{id:kitchenOrder.id,hotelId:a.id},data:{status:"COMPLETED"}});
+  await admin.reload();
+  const row=admin.locator('[data-charge-id="'+foodCharge.id+'"]');
+  await row.getByRole("button",{name:"Otaq hesabını təsdiqlə"}).click();
+  await row.getByText("Daxili təsdiq",{exact:true}).waitFor({timeout:20000});
+  const approved=await db.hotelRoomCharge.findUniqueOrThrow({
+   where:{id:foodCharge.id},include:{events:true}
+  });
+  assert.equal(approved.status,"APPROVED");
+  assert.equal(approved.events.length,2);
+  assert.equal(approved.amount.toString(),"13");
+  assert.equal(approved.approvedBy,"HOTEL_MANAGER");
+  assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id}}),0);
+ });
+
  await t.test("Individual kitchen staff has no access to housekeeping, manager settings or revoked session",async()=>{
   const staffUsername="chef-"+randomUUID().slice(0,6),staffPin="651298";
   const member=await db.hotelStaff.create({data:{
@@ -200,6 +229,8 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
    assert.deepEqual(status,[200,403]);
    await page.goto(BASE+"/hotel-admin/panel/housekeeping");
    assert.doesNotMatch(await page.locator("body").innerText(),/CI Hotel Towel/);
+   await page.goto(BASE+"/hotel-admin/billing");
+   await page.locator('input[name="pin"]').waitFor({timeout:20000});
    await page.goto(BASE+"/hotel-admin");
    await page.locator('input[name="pin"]').waitFor({timeout:20000});
    await db.hotelStaff.update({where:{id:member.id},data:{active:false,sessionVersion:randomUUID()}});

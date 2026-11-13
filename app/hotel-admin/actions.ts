@@ -13,6 +13,7 @@ import {Prisma} from "@prisma/client";
 import {getHotelStaffSession} from "@/app/lib/hotel-staff-auth";
 import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
 import {hashRestaurantPin} from "@/app/lib/pin-security";
+import {canApproveHotelRoomCharge,canVoidHotelRoomCharge} from "@/app/lib/hotel-billing-policy";
 
 const BAD_LOGIN="Otel və ya PİN yanlışdır.";
 export async function loginHotel(form:FormData):Promise<void>{
@@ -170,5 +171,35 @@ export async function resetHotelStaffPin(form: FormData): Promise<void> {
   where:{id,hotelId},data:{pinCode,sessionVersion:randomUUID()}
  });
  if(changed.count!==1)throw new Error("Əməkdaş tapılmadı.");
+ revalidatePath("/hotel-admin");
+}
+
+/** Manual manager approval/void within this hotel ONLY; no banking or PMS posting. */
+export async function decideHotelRoomCharge(form: FormData): Promise<void> {
+ const hotelId=await managerHotelId();
+ const id=String(form.get("chargeId")??"");
+ const decision=form.get("decision");
+ if(!/^[a-z0-9_-]{8,100}$/i.test(id) || (decision!=="APPROVED"&&decision!=="VOID"))
+  throw new Error("Otaq hesabı əməliyyatı yanlışdır.");
+ await db.$transaction(async tx=>{
+  const charge=await tx.hotelRoomCharge.findFirst({
+   where:{id,hotelId},select:{status:true,order:{select:{status:true}}}
+  });
+  if(!charge)throw new Error("Otaq hesabı tapılmadı.");
+  if(decision==="APPROVED"&&!canApproveHotelRoomCharge(charge.order.status,charge.status))
+   throw new Error("Yalnız tamamlanmış sifariş üzrə gözləyən qeyd təsdiqlənə bilər.");
+  if(decision==="VOID"&&!canVoidHotelRoomCharge(charge.status))
+   throw new Error("Bu qeyd artıq yekunlaşdırılıb.");
+  const changed=await tx.hotelRoomCharge.updateMany({
+   where:{id,hotelId,status:"PENDING"},
+   data:{status:decision,approvedAt:decision==="APPROVED"?new Date():null,
+    approvedBy:decision==="APPROVED"?"HOTEL_MANAGER":null}
+  });
+  if(changed.count!==1)throw new Error("Qeyd artıq dəyişdirilib.");
+  await tx.hotelRoomChargeEvent.create({data:{
+   hotelId,chargeId:id,fromStatus:"PENDING",toStatus:decision,actor:"HOTEL_MANAGER",
+  }});
+ });
+ revalidatePath("/hotel-admin/billing");
  revalidatePath("/hotel-admin");
 }
