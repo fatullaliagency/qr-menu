@@ -33,7 +33,7 @@ CREATE INDEX "HotelService_hotelId_department_active_idx" ON "HotelService"("hot
 
 CREATE TABLE "HotelGuestRequest" (
  "id" TEXT PRIMARY KEY, "hotelId" TEXT NOT NULL, "roomId" TEXT NOT NULL,
- "trackingTokenHash" VARCHAR(64) NOT NULL,
+ "trackingTokenHash" VARCHAR(64) NOT NULL, "clientRequestId" VARCHAR(36) NOT NULL UNIQUE,
  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT "HotelGuestRequest_hotelId_fkey" FOREIGN KEY ("hotelId") REFERENCES "Hotel"("id") ON DELETE CASCADE ON UPDATE CASCADE,
  CONSTRAINT "HotelGuestRequest_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "HotelRoom"("id") ON DELETE RESTRICT ON UPDATE CASCADE

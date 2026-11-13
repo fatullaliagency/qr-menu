@@ -301,6 +301,7 @@ model HotelGuestRequest {
   roomId           String
   room             HotelRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
   trackingTokenHash String  @db.VarChar(64)
+  clientRequestId  String   @unique @db.VarChar(36)
   createdAt        DateTime @default(now()) @db.Timestamp(3)
   orders           HotelOrder[]
 
