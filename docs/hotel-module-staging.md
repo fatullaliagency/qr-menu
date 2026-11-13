@@ -26,7 +26,7 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - Otağın statusu VACANT ediləndə QR nonce dəyişir; əvvəlki QR artıq işləməyəcək.
 - QR kodlarındakı token texniki giriş məlumatıdır; QR kodun fiziki və ya rəqəmsal surətini üçüncü tərəf ələ keçirə bilər. QR PNG-si yalnız adminin brauzerində qrcode paketi ilə yaradılır; QR URL xarici QR servisə göndərilmir.
 - QR-dən göndərilən ödənişli müraciət **yalnız daxili otaq hesabına yazılma üçün gözləyən qeyd** sayılır; bankdan pul tutulmur, otelin PMS billing sisteminə avtomatik post edilmir.
-- Panel mərhələsi otel admini üçündür. Fərdi əməkdaş hesabları və şöbə üzrə RBAC sonrakı mərhələdə tətbiq edilməlidir. Ümumi PİN-i bütün əməkdaşlara verməyin.
+- Menecer /hotel-admin vasitəsilə fərdi otel əməkdaşlarını yaradır, söndürür və PİN-i sıfırlayır. Əməkdaş /hotel-staff ilə yalnız təyin edilmiş şöbə panelinə daxil olur; başqa şöbənin API-si 403 qaytarır. Deaktiv edilmə və PİN sıfırlanması mövcud sessiyanı etibarsız edir. Menecer PİN-ini əməkdaşlarla paylaşmayın.
 - Otel otağı QR kodları brauzerdə lokal yaradılır; restoranın mövcud QR yaratma koduna toxunulmur.
 
 ## Qəbul testləri
@@ -36,3 +36,8 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - 3 kateqoriyanın ayrı şöbələrə yönləndirilməsi və eyni səbətin izləmə linki.
 - 5 status üzrə hadisə tarixçəsi, səsli/visal bildiriş, qonağın poll vasitəsilə status yenilənməsi.
 - İki otel arasında ID izolyasiyası; restoran testlərinin dəyişməməsi.
+
+## Staff RBAC CI
+- HotelStaff modeli ayrıca hotelId üzərində unique username və şöbə icazəsi saxlayır.
+- CI-də fərdi əməkdaş login, başqa şöbə rəddi, menecer UI rəddi və deaktivasiya yoxlanılır.
+- DB migrasiyası yalnız disposable `qr_hotel_ci` üzərində avtomatik işlədilir; real otel/PMS mühitinə tətbiq edilməyib.

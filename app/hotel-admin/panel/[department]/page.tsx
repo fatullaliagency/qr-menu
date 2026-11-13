@@ -4,6 +4,9 @@ import {connection} from "next/server";
 import Link from "next/link";
 import {db} from "@/app/lib/db";
 import {getHotelSession} from "@/app/lib/hotel-auth";
+import {getHotelStaffSession} from "@/app/lib/hotel-staff-auth";
+import {canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
+import {logoutHotelStaff} from "@/app/hotel-staff/actions";
 import {hotelModuleEnabled,hotelDepartmentLabels,hotelStatusLabels,isHotelDepartment,hotelNextStatus} from "@/app/lib/hotel-validation";
 import {advanceHotelOrder} from "../../actions";
 import HotelOrderWatcher from "../../HotelOrderWatcher";
@@ -21,12 +24,15 @@ async function DepartmentContent({params}:{
  const {department:raw}=await params;
  const department=raw.toUpperCase();
  if(!isHotelDepartment(department))notFound();
- const session=await getHotelSession();
- if(!session)redirect("/hotel-admin");
- const hotel=await db.hotel.findUnique({where:{id:session.hotelId},select:{name:true}});
- if(!hotel)redirect("/hotel-admin");
+ const manager=await getHotelSession();
+ const staff=manager?null:await getHotelStaffSession();
+ if(!manager&&!staff)redirect("/hotel-staff");
+ if(staff&&!canStaffAccessHotelDepartment(staff.department,department))notFound();
+ const hotelId=(manager?.hotelId??staff?.hotelId)!;
+ const hotel=await db.hotel.findUnique({where:{id:hotelId},select:{name:true}});
+ if(!hotel)notFound();
  const orders=await db.hotelOrder.findMany({
-  where:{hotelId:session.hotelId,department},
+  where:{hotelId,department},
   orderBy:[{createdAt:"desc"},{id:"desc"}],take:100,
   include:{
    request:{select:{room:{select:{number:true}}}},
@@ -37,7 +43,8 @@ async function DepartmentContent({params}:{
  return <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
   <div className="mx-auto max-w-5xl space-y-5">
    <header className="rounded-xl bg-white p-5">
-    <Link href="/hotel-admin" className="text-sm text-blue-700 underline">← Otel admin</Link>
+    {manager?<Link href="/hotel-admin" className="text-sm text-blue-700 underline">← Otel admin</Link>:
+     <form action={logoutHotelStaff}><button className="text-sm text-blue-700 underline">Əməkdaş çıxışı</button></form>}
     <h1 className="mt-2 text-2xl font-bold">{hotel.name} · {hotelDepartmentLabels[department]}</h1>
     <p className="text-sm text-zinc-500">Yalnız bu otelin {hotelDepartmentLabels[department].toLowerCase()} müraciətləri</p>
    </header>

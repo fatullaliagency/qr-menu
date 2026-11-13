@@ -173,6 +173,46 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   }finally{await bCtx.close();}
  });
 
+
+ await t.test("Individual kitchen staff has no access to housekeeping, manager settings or revoked session",async()=>{
+  const staffUsername="chef-"+randomUUID().slice(0,6),staffPin="651298";
+  const member=await db.hotelStaff.create({data:{
+   hotelId:a.id,username:staffUsername,name:"CI Kitchen Staff",department:"KITCHEN",
+   pinCode:await hash(staffPin),
+  }});
+  const context=await browser.newContext({extraHTTPHeaders:{"x-vercel-forwarded-for":"127.0.0.1"}});
+  try {
+   const page=await context.newPage();
+   await page.goto(BASE+"/hotel-staff");
+   await page.locator('input[name="slug"]').fill(a.slug);
+   await page.locator('input[name="username"]').fill(staffUsername);
+   await page.locator('input[name="pin"]').fill(staffPin);
+   await page.getByRole("button",{name:"Daxil ol"}).click();
+   await page.waitForURL(/\/hotel-admin\/panel\/kitchen/,{timeout:20000});
+   await page.getByRole("heading",{name:"Otaq № 101"}).waitFor({timeout:20000});
+   assert.match(await page.locator("body").innerText(),/CI Hotel Soup/);
+   assert.doesNotMatch(await page.locator("body").innerText(),/CI Hotel Towel/);
+   const status=await page.evaluate(async()=>{
+    const okay=await fetch("/hotel-admin/notifications?department=KITCHEN");
+    const forbidden=await fetch("/hotel-admin/notifications?department=HOUSEKEEPING");
+    return [okay.status,forbidden.status];
+   });
+   assert.deepEqual(status,[200,403]);
+   await page.goto(BASE+"/hotel-admin/panel/housekeeping");
+   assert.doesNotMatch(await page.locator("body").innerText(),/CI Hotel Towel/);
+   await page.goto(BASE+"/hotel-admin");
+   await page.locator('input[name="pin"]').waitFor({timeout:20000});
+   await db.hotelStaff.update({where:{id:member.id},data:{active:false,sessionVersion:randomUUID()}});
+   await page.goto(BASE+"/hotel-admin/panel/kitchen");
+   await page.waitForURL(/\/hotel-staff/,{timeout:20000});
+   const revoked=await page.evaluate(async()=>{
+    const r=await fetch("/hotel-admin/notifications?department=KITCHEN");
+    return r.status;
+   });
+   assert.equal(revoked,401);
+  }finally{await context.close();}
+ });
+
  await t.test("Vacating room rotates its QR token",async()=>{
   await db.hotelRoom.update({where:{id:room.id},data:{status:"VACANT",qrNonce:randomUUID()}});
   const response=await fetch(guestUrl);

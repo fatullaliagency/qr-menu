@@ -10,6 +10,9 @@ import {hotelModuleEnabled,hotelCategoryDepartment,isHotelCategory,validHotelRoo
 import {randomUUID} from "node:crypto";
 import {revalidatePath} from "next/cache";
 import {Prisma} from "@prisma/client";
+import {getHotelStaffSession} from "@/app/lib/hotel-staff-auth";
+import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
+import {hashRestaurantPin} from "@/app/lib/pin-security";
 
 const BAD_LOGIN="Otel və ya PİN yanlışdır.";
 export async function loginHotel(form:FormData):Promise<void>{
@@ -95,10 +98,15 @@ export async function toggleHotelService(form:FormData):Promise<void>{
  revalidatePath("/hotel-admin");
 }
 export async function advanceHotelOrder(form:FormData):Promise<void>{
- const hotelId=await managerHotelId();
+ if(!hotelModuleEnabled())throw new Error("Otel modulu deaktivdir.");
+ const manager=await getHotelSession();
+ const staff=manager?null:await getHotelStaffSession();
+ const hotelId=manager?.hotelId??staff?.hotelId;
+ if(!hotelId)throw new Error("Giriş tələb olunur.");
  const id=String(form.get("id")??"");
  const department=form.get("department");
  if(!isHotelDepartment(department) || !/^[a-z0-9_-]{8,100}$/i.test(id))throw new Error("Yanlış sifariş.");
+ if(staff && !canStaffAccessHotelDepartment(staff.department,department))throw new Error("Bu şöbəyə icazə yoxdur.");
  await db.$transaction(async tx=>{
   const order=await tx.hotelOrder.findFirst({
    where:{id,hotelId,department},select:{status:true},
@@ -111,7 +119,7 @@ export async function advanceHotelOrder(form:FormData):Promise<void>{
   });
   if(updated.count!==1)throw new Error("Sifariş statusu artıq dəyişdirilib.");
   await tx.hotelOrderEvent.create({data:{
-   hotelId,orderId:id,fromStatus:order.status,toStatus:next,actor:"HOTEL_ADMIN",
+   hotelId,orderId:id,fromStatus:order.status,toStatus:next,actor:staff?"STAFF:"+staff.staffId:"HOTEL_ADMIN",
   }});
  });
  revalidatePath("/hotel-admin/panel/"+department.toLowerCase());
@@ -125,5 +133,42 @@ export async function setHotelDepartments(form:FormData):Promise<void>{
  const extra=form.get("extraEnabled")==="on";
  if(!food&&!room&&!extra)throw new Error("Ən azı bir xidmət bölməsi seçilməlidir.");
  await db.hotel.update({where:{id:hotelId},data:{foodEnabled:food,roomServiceEnabled:room,extraEnabled:extra}});
+ revalidatePath("/hotel-admin");
+}
+
+/** The owner creates, revokes and resets role-limited staff credentials. */
+export async function createHotelStaff(form: FormData): Promise<void> {
+ const hotelId=await managerHotelId();
+ const username=normalizeHotelStaffUsername(form.get("username"));
+ const name=String(form.get("name")??"").trim();
+ const pin=String(form.get("pin")??"");
+ const department=form.get("department");
+ if(!username||name.length<2||name.length>120||!/^[0-9]{6,12}$/.test(pin)||!isHotelDepartment(department))
+  throw new Error("Əməkdaş məlumatları yanlışdır.");
+ const pinCode=await hashRestaurantPin(pin);
+ await db.hotelStaff.create({data:{hotelId,username,name,pinCode,department}});
+ revalidatePath("/hotel-admin");
+}
+export async function setHotelStaffActive(form: FormData): Promise<void> {
+ const hotelId=await managerHotelId();
+ const id=String(form.get("id")??"");
+ const active=form.get("active")==="true";
+ if(!/^[a-z0-9_-]{8,100}$/i.test(id))throw new Error("Əməkdaş ID-si yanlışdır.");
+ const changed=await db.hotelStaff.updateMany({
+  where:{id,hotelId},data:{active,sessionVersion:randomUUID()}
+ });
+ if(changed.count!==1)throw new Error("Əməkdaş tapılmadı.");
+ revalidatePath("/hotel-admin");
+}
+export async function resetHotelStaffPin(form: FormData): Promise<void> {
+ const hotelId=await managerHotelId();
+ const id=String(form.get("id")??"");
+ const pin=String(form.get("pin")??"");
+ if(!/^[a-z0-9_-]{8,100}$/i.test(id)||!/^[0-9]{6,12}$/.test(pin))throw new Error("PİN yanlışdır.");
+ const pinCode=await hashRestaurantPin(pin);
+ const changed=await db.hotelStaff.updateMany({
+  where:{id,hotelId},data:{pinCode,sessionVersion:randomUUID()}
+ });
+ if(changed.count!==1)throw new Error("Əməkdaş tapılmadı.");
  revalidatePath("/hotel-admin");
 }

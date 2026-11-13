@@ -4,7 +4,7 @@ import {getHotelSession,getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels} from "@/app/lib/hotel-validation";
 import {hotelRoomToken} from "@/app/lib/hotel-security";
 import {db} from "@/app/lib/db";
-import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService,setHotelDepartments} from "./actions";
+import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService,setHotelDepartments,createHotelStaff,setHotelStaffActive,resetHotelStaffPin} from "./actions";
 import RoomQRCode from "./RoomQRCode";
 export const metadata={title:"Otel admin paneli",robots:{index:false,follow:false}};
 type Props={searchParams:Promise<{error?:string|string[]}>};
@@ -29,7 +29,7 @@ async function Panel({searchParams}:Props){
  }
  const hotel=await db.hotel.findUnique({
   where:{id:session.hotelId},
-  include:{rooms:{orderBy:{number:"asc"}},services:{orderBy:{createdAt:"desc"}}},
+  include:{rooms:{orderBy:{number:"asc"}},services:{orderBy:{createdAt:"desc"}},staff:{orderBy:{createdAt:"desc"}}},
  });
  if(!hotel)return <main className="p-8">Otel tapılmadı.</main>;
  const counts=await db.hotelOrder.groupBy({
@@ -52,6 +52,35 @@ async function Panel({searchParams}:Props){
       {hotelDepartmentLabels[d]}<span className="mt-2 block text-sm font-normal">Aktiv müraciətlər: {deptCounts[d]??0}</span>
     </Link>)}
    </nav>
+
+   <section className="space-y-4 rounded-xl bg-white p-5">
+    <h2 className="text-xl font-bold">Əməkdaş hesabları və şöbə icazələri</h2>
+    <p className="text-sm text-zinc-600">Hər əməkdaş öz istifadəçi adı və PİN-i ilə /hotel-staff səhifəsindən daxil olur. Ümumi menecer PİN-ini paylaşmayın.</p>
+    <form action={createHotelStaff} className="grid gap-3 sm:grid-cols-2">
+      <label className="text-sm font-medium">Əməkdaş adı<input name="name" required minLength={2} maxLength={120} className={input}/></label>
+      <label className="text-sm font-medium">İstifadəçi adı<input name="username" required minLength={3} maxLength={40} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,39}" className={input}/></label>
+      <label className="text-sm font-medium">Şöbə<select name="department" className={input}>
+       {(["KITCHEN","HOUSEKEEPING","RECEPTION"] as const).map(d=><option key={d} value={d}>{hotelDepartmentLabels[d]}</option>)}
+      </select></label>
+      <label className="text-sm font-medium">İlkin PİN<input name="pin" type="password" inputMode="numeric" required minLength={6} maxLength={12} pattern="[0-9]{6,12}" autoComplete="new-password" className={input}/></label>
+      <button className="rounded-lg bg-emerald-800 px-4 py-3 font-bold text-white sm:col-span-2">Əməkdaş yarat</button>
+    </form>
+    {hotel.staff.map(member=><article key={member.id} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+      <div><p className="font-semibold">{member.name} · {member.username}</p>
+       <p className="text-xs text-zinc-600">{hotelDepartmentLabels[member.department]} · {member.active?"Aktiv":"Deaktiv"}</p>
+      </div>
+      <form action={setHotelStaffActive} className="flex items-end gap-2">
+       <input type="hidden" name="id" value={member.id}/>
+       <input type="hidden" name="active" value={String(!member.active)}/>
+       <button className="rounded-lg border px-3 py-2 text-sm">{member.active?"Girişi bağla":"Girişi aktiv et"}</button>
+      </form>
+      <form action={resetHotelStaffPin} className="flex items-end gap-2 sm:col-span-2">
+       <input type="hidden" name="id" value={member.id}/>
+       <label className="flex-1 text-sm">Yeni PİN<input name="pin" type="password" required inputMode="numeric" minLength={6} maxLength={12} pattern="[0-9]{6,12}" autoComplete="new-password" className={input}/></label>
+       <button className="rounded-lg border px-3 py-2 text-sm">PİN-i yenilə</button>
+      </form>
+    </article>)}
+   </section>
    <section className="space-y-3 rounded-xl bg-white p-5">
     <h2 className="text-xl font-bold">Aktiv xidmət bölmələri</h2>
     <form action={setHotelDepartments} className="flex flex-wrap items-center gap-4">

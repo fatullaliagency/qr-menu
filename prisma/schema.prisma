@@ -264,6 +264,7 @@ model Hotel {
   requests HotelGuestRequest[]
   orders   HotelOrder[]
   events   HotelOrderEvent[]
+  staff    HotelStaff[]
 }
 
 model HotelRoom {
@@ -357,4 +358,20 @@ model HotelOrderEvent {
   createdAt  DateTime           @default(now()) @db.Timestamp(3)
 
   @@index([hotelId, orderId, createdAt])
+}
+
+model HotelStaff {
+  id             String          @id @default(cuid())
+  hotelId        String
+  hotel          Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  username       String          @db.VarChar(40)
+  name           String          @db.VarChar(120)
+  pinCode        String
+  department     HotelDepartment
+  active         Boolean         @default(true)
+  sessionVersion String          @default(cuid())
+  createdAt      DateTime        @default(now()) @db.Timestamp(3)
+
+  @@unique([hotelId, username])
+  @@index([hotelId, department, active])
 }
