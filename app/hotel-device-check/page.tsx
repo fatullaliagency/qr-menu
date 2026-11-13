@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import DeviceDiagnostics from "./DeviceDiagnostics";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Otel — telefon qəbul testi", robots: { index: false, follow: false } };
 
-export default function HotelDeviceCheckPage() {
+export default async function HotelDeviceCheckPage() {
+  await connection();
   // Public device-only diagnostics: explicitly opt-in on the isolated hotel project.
   // No database access, guest details, tokens or uploads.
   if (process.env.HOTEL_DEVICE_CHECK_ENABLED !== "true") notFound();
