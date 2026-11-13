@@ -4,7 +4,8 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 
 ## Ayrı canlı test mühiti — məcburi ön şərtlər
 - [ ] Restoran staging-dən və production-dan **ayrı PostgreSQL** otel test bazası yaradılıb, DB identifikatoru ayrıca təsdiq edilib.
-- [ ] Otelə aid **ayrıca Vercel layihəsi**/environment konfiqurasiya olunub; yalnız `feature/hotel-module-v1` işləyir.
+- [x] Ayrı `qr-menu-hotel-staging` Vercel layihəsi yaradılıb (preview source: `feature/hotel-module-v1`); otel, sifariş və superadmin funksiyaları ayrıca DB hazır olana qədər bağlıdır.
+- [ ] Layihəyə otel test bazasının ayrıca `DATABASE_URL` dəyəri təhlükəsiz şəkildə qoşulub; layihə canlı test üçün yenidən yerləşdirilib.
 - [ ] `ENABLE_HOTEL_MODULE=true` yalnız həmin izolyasiya olunmuş mühitdədir; restoran və production mühitində deaktivdir.
 - [ ] Migrasiya öncəsi backup yaradılıb və bərpası yoxlanılıb; `prisma migrate deploy` yalnız ayrıca DB-də icra olunub.
 - [ ] Session secret və superadmin açarları Vercel mühitində mövcuddur; dəyərləri heç bir logda paylaşılmır.
@@ -22,7 +23,8 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 
 ## Hesablaşma və hüquqi təsdiq
 - [ ] Otaq hesabı `PENDING → APPROVED` yalnız daxili təsdiqdir; pul alınması və ya PMS postings hesablanmır.
-- [ ] Mövcud otel sifarişləri varsa, ledger üçün ayrıca uzlaşdırma/backfill planı hazırlanıb.
+- [ ] Mövcud otel sifarişləri varsa, ledger və `stayKey=legacy` qeydləri üçün ayrıca uzlaşdırma/backfill planı hazırlanıb.
+- [x] Menecerin yalnız öz otelinə aid otaq hesablarını UTC tarix intervalı ilə CSV kimi çıxarması və formula injection qorunması kodlaşdırılıb.
 - [ ] Real PMS provayderi, API sənədi, müqavilə və təhlükəsiz təsdiq olmadan PMS bağlantısı edilməyib.
 - [ ] Onlayn kart ödənişi provayder təsdiqi və webhook mühafizəsi olmadan aktiv edilməyib.
 

@@ -213,6 +213,17 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   assert.equal(approved.amount.toString(),"13");
   assert.equal(approved.approvedBy,"HOTEL_MANAGER");
   assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id}}),0);
+  const report=await admin.request.get(BASE+"/hotel-admin/billing/export");
+  assert.equal(report.status(),200);
+  assert.match(report.headers()["content-type"]??"",/text\/csv/);
+  assert.match(report.headers()["cache-control"]??"",/no-store/);
+  const csv=await report.text();
+  assert.match(csv,/CI Hotel Alpha/);
+  assert.match(csv,/APPROVED/);
+  assert.match(csv,/13\.00/);
+  assert.doesNotMatch(csv,/CI Hotel Beta/);
+  assert.equal((await admin.request.get(BASE+"/hotel-admin/billing/export?from=2026-10-01&to=2026-11-13")).status(),400);
+  assert.equal((await guest.request.get(BASE+"/hotel-admin/billing/export")).status(),401);
  });
 
  await t.test("Guest tracking updates after service completion",async()=>{
@@ -246,6 +257,7 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
    assert.deepEqual(status,[200,403]);
    await page.goto(BASE+"/hotel-admin/panel/housekeeping");
    assert.doesNotMatch(await page.locator("body").innerText(),/CI Hotel Towel/);
+   assert.equal((await page.request.get(BASE+"/hotel-admin/billing/export")).status(),401);
    await page.goto(BASE+"/hotel-admin/billing");
    await page.locator('input[name="pin"]').waitFor({timeout:20000});
    await page.goto(BASE+"/hotel-admin");
