@@ -24,10 +24,10 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - Eyni səbət müxtəlif şöbələrə ayrı sifarişlər kimi yazılır, amma bir izləmə linki verilir.
 - `clientRequestId` UNIQUE-dur: eyni əməliyyat təkrarlanarsa ikinci dəfə sifariş yaradılmır.
 - Otağın statusu VACANT ediləndə QR nonce dəyişir; əvvəlki QR artıq işləməyəcək.
-- QR kodlarındakı token texniki giriş məlumatıdır; QR kodun fiziki və ya rəqəmsal surətini üçüncü tərəf ələ keçirə bilər.
+- QR kodlarındakı token texniki giriş məlumatıdır; QR kodun fiziki və ya rəqəmsal surətini üçüncü tərəf ələ keçirə bilər. QR PNG-si yalnız adminin brauzerində qrcode paketi ilə yaradılır; QR URL xarici QR servisə göndərilmir.
 - QR-dən göndərilən ödənişli müraciət **yalnız daxili otaq hesabına yazılma üçün gözləyən qeyd** sayılır; bankdan pul tutulmur, otelin PMS billing sisteminə avtomatik post edilmir.
 - Panel mərhələsi otel admini üçündür. Fərdi əməkdaş hesabları və şöbə üzrə RBAC sonrakı mərhələdə tətbiq edilməlidir. Ümumi PİN-i bütün əməkdaşlara verməyin.
-- Otaq QR şəkilləri mövcud restoran modulu kimi qrserver.com xidmətindən alınır: bu, QR URL-lərinin üçüncü tərəfə göndərilməsini nəzərdə tutur. Təhlükəsiz canlı istifadədən əvvəl yerli QR generatoru ilə əvəz edilməlidir.
+- Otel otağı QR kodları brauzerdə lokal yaradılır; restoranın mövcud QR yaratma koduna toxunulmur.
 
 ## Qəbul testləri
 - Hər iki tip üçün superadmin yaratma və filtr.
