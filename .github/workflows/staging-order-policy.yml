@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   policy-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Disposable PostgreSQL service: never the staging or production database.
     services:
       postgres:
