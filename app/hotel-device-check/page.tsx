@@ -1,10 +1,15 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { connection } from "next/server";
 import DeviceDiagnostics from "./DeviceDiagnostics";
 
 export const metadata = { title: "Otel — telefon qəbul testi", robots: { index: false, follow: false } };
 
-export default async function HotelDeviceCheckPage() {
+export default function HotelDeviceCheckPage() {
+  return <Suspense fallback={<main className="p-8">Telefon testi yüklənir...</main>}><PageContent /></Suspense>;
+}
+
+async function PageContent() {
   await connection();
   // Public device-only diagnostics: explicitly opt-in on the isolated hotel project.
   // No database access, guest details, tokens or uploads.
