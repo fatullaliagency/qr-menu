@@ -13,3 +13,11 @@ export function hotelRoomStayKey(hotelId: string, roomId: string, roomNonce: str
 export function shouldRotateHotelRoomToken(previous: HotelRoomStatus, next: HotelRoomStatus): boolean {
  return previous !== next && (previous === "OCCUPIED" || next === "VACANT");
 }
+
+/** No occupied room can be checked out while current-stay charges are pending. */
+export function canReleaseHotelRoomWithCharges(
+  previous: HotelRoomStatus, next: HotelRoomStatus, pendingCurrentStay: number
+): boolean {
+ if(!Number.isSafeInteger(pendingCurrentStay)||pendingCurrentStay<0) return false;
+ return !(previous==="OCCUPIED"&&next==="VACANT"&&pendingCurrentStay>0);
+}

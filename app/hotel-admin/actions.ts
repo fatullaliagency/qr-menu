@@ -14,7 +14,7 @@ import {getHotelStaffSession,deleteHotelStaffSession} from "@/app/lib/hotel-staf
 import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
 import {hashRestaurantPin} from "@/app/lib/pin-security";
 import {canApproveHotelRoomCharge,canVoidHotelRoomCharge} from "@/app/lib/hotel-billing-policy";
-import {shouldRotateHotelRoomToken} from "@/app/lib/hotel-stay";
+import {shouldRotateHotelRoomToken,hotelRoomStayKey,canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
 
 const BAD_LOGIN="Otel və ya PİN yanlışdır.";
 export async function loginHotel(form:FormData):Promise<void>{
@@ -71,12 +71,22 @@ export async function setHotelRoomStatus(form:FormData):Promise<void>{
  const status=String(form.get("status")??"");
  if(!["VACANT","OCCUPIED","OUT_OF_SERVICE"].includes(status))throw new Error("Yanlış otaq statusu.");
  await db.$transaction(async tx=>{
-  const current=await tx.hotelRoom.findFirst({
-   where:{id:roomId,hotelId},select:{status:true},
-  });
+  // Use the same row lock as guest checkout: a new order cannot race with checkout.
+  const rows=await tx.$queryRaw<{status:"VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";qrNonce:string}[]>`
+   SELECT "status","qrNonce" FROM public."HotelRoom"
+   WHERE "id"=${roomId} AND "hotelId"=${hotelId} FOR UPDATE
+  `;
+  const current=rows[0];
   if(!current)throw new Error("Otaq tapılmadı.");
   const next=status as "VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";
   if(current.status===next)return;
+  if(current.status==="OCCUPIED"&&next==="VACANT"){
+   const pending=await tx.hotelRoomCharge.count({where:{
+    hotelId,roomId,status:"PENDING",stayKey:hotelRoomStayKey(hotelId,roomId,current.qrNonce)
+   }});
+   if(!canReleaseHotelRoomWithCharges(current.status,next,pending))
+    throw new Error("Otaq boşaldılmazdan əvvəl cari qalma üzrə hesabları təsdiqləyin və ya ləğv edin.");
+  }
   const changed=await tx.hotelRoom.updateMany({
    where:{id:roomId,hotelId,status:current.status},
    data:{status:next,

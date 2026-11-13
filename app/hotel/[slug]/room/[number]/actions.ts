@@ -66,7 +66,17 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
   grouped.set(s.department,items);
  }
  try{
- await db.hotelGuestRequest.create({data:{
+ await db.$transaction(async tx=>{
+  // Lock the exact hotel/room row before writing orders or pending charges.
+  // A concurrent checkout must wait, so it sees the pending charge or the request fails.
+  const locked=await tx.$queryRaw<{status:"VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";qrNonce:string}[]>`
+   SELECT "status","qrNonce" FROM public."HotelRoom"
+   WHERE "id"=${room.id} AND "hotelId"=${hotel.id} FOR UPDATE
+  `;
+  if(!locked[0]||locked[0].status!=="OCCUPIED"||
+     !verifyHotelRoomToken(getHotelSecret(),hotel.id,room.id,locked[0].qrNonce,token))
+   throw new Error("Otaq artıq aktiv deyil; sifariş qəbul edilmədi.");
+  await tx.hotelGuestRequest.create({data:{
   clientRequestId:requestId,hotelId:hotel.id,roomId:room.id,
   trackingTokenHash:hashHotelTrackingToken(trackingToken),
   orders:{create:[...grouped.entries()].map(([department,items])=>({
@@ -82,7 +92,8 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
    }},
    events:{create:{hotelId:hotel.id,toStatus:"NEW" as const,actor:"GUEST"}},
   }))},
- }});
+  }});
+ },{timeout:10000});
  }catch(error){
   if(!(error instanceof Prisma.PrismaClientKnownRequestError && error.code==="P2002"))throw error;
   const replay=await db.hotelGuestRequest.findUnique({

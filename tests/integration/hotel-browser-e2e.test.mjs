@@ -273,8 +273,36 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   }finally{await context.close();}
  });
 
- await t.test("Vacating room rotates its QR token",async()=>{
-  await db.hotelRoom.update({where:{id:room.id},data:{status:"VACANT",qrNonce:randomUUID()}});
+ await t.test("Checkout blocks pending room folio, then invalidates previous QR",async()=>{
+  const towelOrder=await db.hotelOrder.findFirstOrThrow({
+   where:{hotelId:a.id,department:"HOUSEKEEPING"}
+  });
+  const towelCharge=await db.hotelRoomCharge.findUniqueOrThrow({
+   where:{orderId:towelOrder.id}
+  });
+  await admin.goto(BASE+"/hotel-admin");
+  await admin.getByRole("heading",{name:"Otaq № 101"}).waitFor({timeout:20000});
+  const roomCard=admin.locator("article").filter({
+   has:admin.getByRole("heading",{name:"Otaq № 101"})
+  });
+  assert.equal(await roomCard.locator('option[value="VACANT"]').isDisabled(),true);
+  await admin.goto(BASE+"/hotel-admin/billing");
+  const chargeCard=admin.locator('[data-charge-id="'+towelCharge.id+'"]');
+  await chargeCard.getByRole("button",{name:"Gözləyən qeydi ləğv et"}).click();
+  await chargeCard.getByText("Ləğv edildi",{exact:true}).waitFor({timeout:20000});
+  await admin.goto(BASE+"/hotel-admin");
+  const active=admin.locator("article").filter({has:admin.getByRole("heading",{name:"Otaq № 101"})});
+  assert.equal(await active.locator('option[value="VACANT"]').isDisabled(),false);
+  await active.locator('select[name="status"]').selectOption("VACANT");
+  await active.getByRole("button",{name:"Yadda saxla"}).click();
+  let latest;
+  for(let i=0;i<50;i++){
+   latest=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+   if(latest.status==="VACANT")break;
+   await new Promise(done=>setTimeout(done,200));
+  }
+  assert.equal(latest?.status,"VACANT");
+  assert.notEqual(latest.qrNonce,room.qrNonce);
   const response=await fetch(guestUrl);
   assert.ok(response.status===200||response.status===404);
   const html=await response.text();

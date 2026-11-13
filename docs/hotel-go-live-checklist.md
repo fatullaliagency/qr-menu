@@ -13,6 +13,7 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 ## Manual qəbul testi — telefon və real səslə
 - [ ] Android Chrome və iOS Safari: otaq QR-ni skan et; yalnız müvafiq otaq açılsın.
 - [ ] Boş otağa sifariş getməsin; otaq boşaldıldıqdan sonra köhnə QR etibarsızlaşsın.
+- [ ] Qalma dövründə gözləyən otaq hesabı olduqda checkout rədd edilsin; menecer qeydi təsdiq/ləğv etdikdən sonra checkout mümkün olsun.
 - [ ] Yemək, dəsmal və transfer müraciətlərini eyni səbətdə göndər; üç müstəqil şöbə qeydini yoxla.
 - [ ] Fərdi əməkdaş ilə giriş et; başqa şöbə, hotel admin və billing qadağan olunsun.
 - [ ] Menecer PİN-i olmadan otaq hesabı təsdiqlənə bilməsin; tamamlanmamış sifariş təsdiqlənməsin.
