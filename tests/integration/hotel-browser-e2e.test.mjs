@@ -105,6 +105,23 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   assert.equal((await admin.locator("body").innerText()).includes(b.name),false);
  });
 
+ await t.test("Manager-only room QR print sheets are tenant-scoped and fully generated locally",async()=>{
+  await admin.getByRole("link",{name:"Otaq QR-lərini toplu çap et"}).click();
+  await admin.getByRole("heading",{name:"Otaq QR kodlarını çap et"}).waitFor({timeout:20000});
+  assert.match(await admin.locator("body").innerText(),/CI Hotel Alpha/);
+  assert.doesNotMatch(await admin.locator("body").innerText(),/CI Hotel Beta/);
+  await admin.getByRole("button",{name:"Bu səhifəni çap et"}).isEnabled();
+  await admin.getByRole("button",{name:"Bu səhifəni çap et"}).waitFor({state:"visible"});
+  await admin.locator('[data-print-room="101"] img').waitFor({state:"visible",timeout:30000});
+  const qr=await admin.locator('[data-print-room="101"] img').getAttribute("src");
+  assert.match(qr??"",/^data:image\/png;base64,/);
+  assert.doesNotMatch(await admin.locator("body").innerText(),/\?t=/);
+  const req=await guest.goto(BASE+"/hotel-admin/rooms/print");
+  // Unauthenticated guests are redirected to the login page, not shown QR data.
+  assert.ok(req?.status()===200||req?.status()===307||req?.status()===308);
+  assert.equal(await guest.locator('[data-print-room]').count(),0);
+ });
+
  await t.test("Wrong and cross-hotel QR tokens cannot open the room",async()=>{
   // Next.js streams the 404 boundary and may retain HTTP 200 after suspense flush.
   // The security requirement is that the invalid QR never reveals any service data.
@@ -209,6 +226,12 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    await panel.locator('input[name="pin"]').fill(pinB);
    await panel.getByRole("button",{name:"Daxil ol"}).click();
    await panel.getByRole("heading",{name:b.name}).waitFor({timeout:20000});
+   await panel.goto(BASE+"/hotel-admin/rooms/print");
+   await panel.locator('[data-print-room="101"] img').waitFor({state:"visible",timeout:30000});
+   assert.match(await panel.locator("body").innerText(),/CI Hotel Beta/);
+   assert.doesNotMatch(await panel.locator("body").innerText(),/CI Hotel Alpha/);
+   const bQr=await panel.locator('[data-print-room="101"] img').getAttribute("src");
+   assert.ok(bQr&&bQr!==await admin.locator('[data-print-room="101"] img').getAttribute("src"));
    await panel.goto(BASE+"/hotel-admin/panel/kitchen");
    await panel.getByText("Hələ müraciət yoxdur.").waitFor({timeout:20000});
    assert.doesNotMatch(await panel.locator("body").innerText(),/CI Hotel Soup/);

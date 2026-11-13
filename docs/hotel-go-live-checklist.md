@@ -54,3 +54,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [ ] Otel staging linkini real iPhone Safari və Android Chrome-da açıb kamera/səs/bildiriş testlərini yerinə yetirin.
 - [ ] Test nəticəsi istifadəçinin razılığı ilə kopyalanıb, qəbul qərarı qeyd edilib; səhifə heç bir görüntünü və şəxsi məlumatı serverə göndərmir.
 - [ ] Real QR ilə sifariş və şöbə bildirişi üçün ayrıca otel PostgreSQL bağlantısı hələ tələb olunur.
+
+## Otaq QR toplu çapı
+- [x] Otel meneceri üçün yalnız öz otelini göstərən `/hotel-admin/rooms/print` səhifəsi (hər səhifədə 24 QR).
+- [x] QR-lər üçüncü tərəfə ötürülmədən yalnız brauzerdə yaradılır; çap vərəqi paylaşılmamalıdır.
+- [ ] Çapdan sonra otaq nömrələrinin fiziki otaqlara düzgün bağlandığı real cihazda yoxlanılıb.
+- [ ] Otaq boşaldıqda QR yenilənir; köhnə çap vərəqlərinin ləğvi qəbulla təsdiqlənib.
