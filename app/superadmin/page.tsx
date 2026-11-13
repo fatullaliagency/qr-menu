@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { db } from "@/app/lib/db";
 import { hotelModuleEnabled } from "@/app/lib/hotel-validation";
+import { parseEnterpriseFilters, matchesEnterpriseSearch } from "@/app/lib/enterprise-filters";
 import {
   hasSuperAdminSession,
   isSuperAdminEnabled,
@@ -146,29 +147,26 @@ async function SuperAdminContent({ searchParams }: Props) {
   const totalPaid = overview.reduce((sum, restaurant) => sum + restaurant.paid, 0);
   const recentOrders = overview.reduce((sum, restaurant) => sum + restaurant.lastSevenDays, 0);
 
-  // Axtarış yalnız görünən restoran siyahısını süzgəcdən keçirir.
-  // Ümumi göstəricilər bütün restoranlar üzrə qalır.
+  // The search and type filter affect visible businesses, not summary totals.
   const query = await searchParams;
-  const search = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
-  const normalized = search.toLocaleLowerCase("az-AZ");
-  const type=query.type==="hotel"?"hotel":query.type==="restaurant"?"restaurant":"all";
-  const hotels=hotelModuleEnabled()
-    ? await db.hotel.findMany({orderBy:{name:"asc"},
-       select:{id:true,name:true,slug:true,branchName:true,roomCount:true}})
+  const hotelEnabled = hotelModuleEnabled();
+  const { search, normalized, type } = parseEnterpriseFilters(query, hotelEnabled);
+  const hotels = hotelEnabled
+    ? await db.hotel.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, slug: true, branchName: true, roomCount: true },
+      })
     : [];
-  const hotelGroups=hotelModuleEnabled()?await db.hotelOrder.groupBy({
-    by:["hotelId"],_count:{_all:true},
-  }):[];
-  const visibleHotels=(type==="restaurant"?[]:hotels).filter(h=>
-    !normalized||h.name.toLocaleLowerCase("az-AZ").includes(normalized)||
-    h.slug.toLocaleLowerCase("az-AZ").includes(normalized));
+  const hotelGroups = hotelEnabled
+    ? await db.hotelOrder.groupBy({ by: ["hotelId"], _count: { _all: true } })
+    : [];
 
-  const visibleRestaurants = type==="hotel"?[]:normalized
-    ? overview.filter((restaurant) =>
-        restaurant.name.toLocaleLowerCase("az-AZ").includes(normalized) ||
-        restaurant.slug.toLocaleLowerCase("az-AZ").includes(normalized)
-      )
-    : overview;
+  const visibleHotels = type === "restaurant"
+    ? []
+    : hotels.filter((hotel) => matchesEnterpriseSearch(hotel, normalized));
+  const visibleRestaurants = type === "hotel"
+    ? []
+    : overview.filter((restaurant) => matchesEnterpriseSearch(restaurant, normalized));
 
   return (
     <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
@@ -197,7 +195,8 @@ async function SuperAdminContent({ searchParams }: Props) {
             </form>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">\n          {hotelModuleEnabled()&&<div className="rounded-xl bg-white p-5 shadow-sm"><p className="text-sm text-zinc-600">Otel sayı</p><p className="text-3xl font-bold">{hotels.length}</p></div>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {hotelModuleEnabled()&&<div className="rounded-xl bg-white p-5 shadow-sm"><p className="text-sm text-zinc-600">Otel sayı</p><p className="text-3xl font-bold">{hotels.length}</p></div>}
           <div className="rounded-xl bg-white p-5 shadow-sm">
             <p className="text-sm text-zinc-600">Restoran sayı</p>
             <p className="text-3xl font-bold">{restaurants.length}</p>
@@ -230,6 +229,21 @@ async function SuperAdminContent({ searchParams }: Props) {
                 placeholder="Məsələn: testrestoran"
                 className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900" />
             </label>
+            {hotelEnabled && (
+              <label htmlFor="enterprise-type" className="text-sm font-medium">
+                Müəssisə tipi
+                <select
+                  id="enterprise-type"
+                  name="type"
+                  defaultValue={type}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900"
+                >
+                  <option value="all">Hamısı</option>
+                  <option value="restaurant">Restoran</option>
+                  <option value="hotel">Otel</option>
+                </select>
+              </label>
+            )}
             <button type="submit"
               className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white">
               Axtar
@@ -247,7 +261,8 @@ async function SuperAdminContent({ searchParams }: Props) {
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
               <tr className="border-b text-zinc-600">
-                <th className="p-3">Restoran</th>\n                <th className="p-3">Tip</th>
+                <th className="p-3">Restoran</th>
+                <th className="p-3">Tip</th>
                 <th className="p-3">Kateqoriya</th>
                 <th className="p-3">Məhsul</th>
                 <th className="p-3">Cəmi sifariş</th>
@@ -296,7 +311,8 @@ async function SuperAdminContent({ searchParams }: Props) {
                       Restoranı düzəlt
                     </Link>
                   </td>
-                  <td className="p-3">Restoran</td>\n                  <td className="p-3">{restaurant.categoryCount}</td>
+                  <td className="p-3">Restoran</td>
+                  <td className="p-3">{restaurant.categoryCount}</td>
                   <td className="p-3">{restaurant.menuItemCount}</td>
                   <td className="p-3">{restaurant.total}</td>
                   <td className="p-3">{restaurant.newOrders}</td>
