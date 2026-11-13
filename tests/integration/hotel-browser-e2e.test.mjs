@@ -188,8 +188,18 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   await admin.goto(BASE+"/hotel-admin/billing");
   await admin.getByRole("heading",{name:/Otaq hesabları/}).waitFor({timeout:20000});
   assert.equal(await admin.locator('[data-charge-id="'+foodCharge.id+'"] button').filter({hasText:"Otaq hesabını təsdiqlə"}).count(),0);
-  await db.hotelOrder.updateMany({where:{id:kitchenOrder.id,hotelId:a.id},data:{status:"COMPLETED"}});
-  await admin.reload();
+  await admin.goto(BASE+"/hotel-admin/panel/kitchen");
+  for(const [button,next] of [
+    ["Hazırlanır et","Göndərildi et"],
+    ["Göndərildi et","Tamamlandı et"],
+    ["Tamamlandı et",null],
+  ]){
+    await admin.getByRole("button",{name:button}).click();
+    if(next)await admin.getByRole("button",{name:next}).waitFor({timeout:20000});
+    else await admin.getByText("Tamamlandı",{exact:true}).first().waitFor({timeout:20000});
+  }
+  assert.equal(await db.hotelOrderEvent.count({where:{hotelId:a.id,orderId:kitchenOrder.id}}),5);
+  await admin.goto(BASE+"/hotel-admin/billing");
   const row=admin.locator('[data-charge-id="'+foodCharge.id+'"]');
   await row.getByRole("button",{name:"Otaq hesabını təsdiqlə"}).click();
   await row.getByText("Daxili təsdiq",{exact:true}).waitFor({timeout:20000});
@@ -201,6 +211,11 @@ test("Chromium: hotel room QR, guest cart, department status and hotel isolation
   assert.equal(approved.amount.toString(),"13");
   assert.equal(approved.approvedBy,"HOTEL_MANAGER");
   assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id}}),0);
+ });
+
+ await t.test("Guest tracking updates after service completion",async()=>{
+  await guest.getByText("Mətbəx / restoran: Tamamlandı",{exact:false}).waitFor({timeout:30000});
+  assert.match(await guest.locator("body").innerText(),/Tamamlandı/);
  });
 
  await t.test("Individual kitchen staff has no access to housekeeping, manager settings or revoked session",async()=>{

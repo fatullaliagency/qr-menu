@@ -1,0 +1,35 @@
+# Otel modulu — istifadəyə buraxılış və real cihaz qəbul siyahısı
+
+Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzinə keçirmir. `main` və restoran staging mühitləri dəyişdirilməməlidir.
+
+## Ayrı canlı test mühiti — məcburi ön şərtlər
+- [ ] Restoran staging-dən və production-dan **ayrı PostgreSQL** otel test bazası yaradılıb, DB identifikatoru ayrıca təsdiq edilib.
+- [ ] Otelə aid **ayrıca Vercel layihəsi**/environment konfiqurasiya olunub; yalnız `feature/hotel-module-v1` işləyir.
+- [ ] `ENABLE_HOTEL_MODULE=true` yalnız həmin izolyasiya olunmuş mühitdədir; restoran və production mühitində deaktivdir.
+- [ ] Migrasiya öncəsi backup yaradılıb və bərpası yoxlanılıb; `prisma migrate deploy` yalnız ayrıca DB-də icra olunub.
+- [ ] Session secret və superadmin açarları Vercel mühitində mövcuddur; dəyərləri heç bir logda paylaşılmır.
+
+## Manual qəbul testi — telefon və real səslə
+- [ ] Android Chrome və iOS Safari: otaq QR-ni skan et; yalnız müvafiq otaq açılsın.
+- [ ] Boş otağa sifariş getməsin; otaq boşaldıldıqdan sonra köhnə QR etibarsızlaşsın.
+- [ ] Yemək, dəsmal və transfer müraciətlərini eyni səbətdə göndər; üç müstəqil şöbə qeydini yoxla.
+- [ ] Fərdi əməkdaş ilə giriş et; başqa şöbə, hotel admin və billing qadağan olunsun.
+- [ ] Menecer PİN-i olmadan otaq hesabı təsdiqlənə bilməsin; tamamlanmamış sifariş təsdiqlənməsin.
+- [ ] Yeni sifarişin vizual/səsli bildirişi fiziki telefonda test edilsin; brauzer bağlı olanda push zəmanəti yoxdur.
+- [ ] Qonağın izləmə ekranı status dəyişikliyini əks etdirsin; brauzer bildirişi yalnız könüllü icazə ilə alınsın.
+- [ ] İki otelin eyni nömrəli otaqları, sifarişləri və əməkdaşları bir-birinə görünməsin.
+- [ ] Aşağı internet sürəti, internet kəsilməsi, təkrar klik, yanlış token və bərpa ssenariləri keçsin.
+
+## Hesablaşma və hüquqi təsdiq
+- [ ] Otaq hesabı `PENDING → APPROVED` yalnız daxili təsdiqdir; pul alınması və ya PMS postings hesablanmır.
+- [ ] Mövcud otel sifarişləri varsa, ledger üçün ayrıca uzlaşdırma/backfill planı hazırlanıb.
+- [ ] Real PMS provayderi, API sənədi, müqavilə və təhlükəsiz təsdiq olmadan PMS bağlantısı edilməyib.
+- [ ] Onlayn kart ödənişi provayder təsdiqi və webhook mühafizəsi olmadan aktiv edilməyib.
+
+## İstifadəyə buraxılış qərarı
+- [ ] Cari branch üçün otel CI, restoran regressiyası, PostgreSQL isolation, Chromium E2E, TS və Next build SUCCESS.
+- [ ] Canlı izolyasiya edilmiş sınaqdan loglar və nəticələr toplanıb.
+- [ ] Otel meneceri və sifariş operatorları real cihaz qəbulunu təsdiqləyib.
+- [ ] Data migration və rollback planı yoxlanıb; ayrıca production release razılığı alınıb.
+
+**Cari vəziyyət:** ayrı canlı otel test bazası və real cihaz qəbul testi təsdiqlənmədiyi üçün production release etmək olmaz.
