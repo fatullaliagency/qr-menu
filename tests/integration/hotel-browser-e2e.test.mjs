@@ -105,16 +105,18 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   assert.equal((await admin.locator("body").innerText()).includes(b.name),false);
  });
 
+ let alphaQrImage="";
  await t.test("Manager-only room QR print sheets are tenant-scoped and fully generated locally",async()=>{
   await admin.getByRole("link",{name:"Otaq QR-lərini toplu çap et"}).click();
   await admin.getByRole("heading",{name:"Otaq QR kodlarını çap et"}).waitFor({timeout:20000});
   assert.match(await admin.locator("body").innerText(),/CI Hotel Alpha/);
   assert.doesNotMatch(await admin.locator("body").innerText(),/CI Hotel Beta/);
-  await admin.getByRole("button",{name:"Bu səhifəni çap et"}).isEnabled();
   await admin.getByRole("button",{name:"Bu səhifəni çap et"}).waitFor({state:"visible"});
   await admin.locator('[data-print-room="101"] img').waitFor({state:"visible",timeout:30000});
   const qr=await admin.locator('[data-print-room="101"] img').getAttribute("src");
   assert.match(qr??"",/^data:image\/png;base64,/);
+  alphaQrImage=qr??"";
+  assert.equal(await admin.getByRole("button",{name:"Bu səhifəni çap et"}).isEnabled(),true);
   assert.doesNotMatch(await admin.locator("body").innerText(),/\?t=/);
   const req=await guest.goto(BASE+"/hotel-admin/rooms/print");
   // Unauthenticated guests are redirected to the login page, not shown QR data.
@@ -231,7 +233,7 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    assert.match(await panel.locator("body").innerText(),/CI Hotel Beta/);
    assert.doesNotMatch(await panel.locator("body").innerText(),/CI Hotel Alpha/);
    const bQr=await panel.locator('[data-print-room="101"] img').getAttribute("src");
-   assert.ok(bQr&&bQr!==await admin.locator('[data-print-room="101"] img').getAttribute("src"));
+   assert.ok(bQr&&bQr!==alphaQrImage);
    await panel.goto(BASE+"/hotel-admin/panel/kitchen");
    await panel.getByText("Hələ müraciət yoxdur.").waitFor({timeout:20000});
    assert.doesNotMatch(await panel.locator("body").innerText(),/CI Hotel Soup/);
