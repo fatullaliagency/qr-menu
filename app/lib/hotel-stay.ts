@@ -14,10 +14,12 @@ export function shouldRotateHotelRoomToken(previous: HotelRoomStatus, next: Hote
  return previous !== next && (previous === "OCCUPIED" || next === "VACANT");
 }
 
-/** No occupied room can be checked out while current-stay charges are pending. */
+/** A room cannot be marked VACANT with unpaid/unresolved folio entries from ANY stay.
+ * OUT_OF_SERVICE is an emergency state, not a bypass for pending charges.
+ */
 export function canReleaseHotelRoomWithCharges(
-  previous: HotelRoomStatus, next: HotelRoomStatus, pendingCurrentStay: number
+  previous: HotelRoomStatus, next: HotelRoomStatus, pendingChargesForRoom: number
 ): boolean {
- if(!Number.isSafeInteger(pendingCurrentStay)||pendingCurrentStay<0) return false;
- return !(previous==="OCCUPIED"&&next==="VACANT"&&pendingCurrentStay>0);
+ if(!Number.isSafeInteger(pendingChargesForRoom)||pendingChargesForRoom<0) return false;
+ return !(previous!=="VACANT"&&next==="VACANT"&&pendingChargesForRoom>0);
 }

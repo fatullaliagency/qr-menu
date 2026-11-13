@@ -3,7 +3,7 @@ import Link from "next/link";
 import {getHotelSession,getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels} from "@/app/lib/hotel-validation";
 import {hotelRoomToken} from "@/app/lib/hotel-security";
-import {hotelRoomStayKey,canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
+import {canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
 import {db} from "@/app/lib/db";
 import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService,setHotelDepartments,createHotelStaff,setHotelStaffActive,resetHotelStaffPin} from "./actions";
 import RoomQRCode from "./RoomQRCode";
@@ -38,10 +38,10 @@ async function Panel({searchParams}:Props){
  });
  const deptCounts=Object.fromEntries(counts.map(x=>[x.department,x._count._all]));
  const unresolved=await db.hotelRoomCharge.groupBy({
-  by:["roomId","stayKey"],
+  by:["roomId"],
   where:{hotelId:hotel.id,status:"PENDING"},_count:{_all:true}
  });
- const pendingByRoom=new Map(unresolved.map(x=>[x.roomId+":"+x.stayKey,x._count._all]));
+ const pendingByRoom=new Map(unresolved.map(x=>[x.roomId,x._count._all]));
  return <main className="min-h-screen bg-zinc-100 p-5 text-zinc-900">
   <div className="mx-auto max-w-6xl space-y-6">
    <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-5">
@@ -99,7 +99,7 @@ async function Panel({searchParams}:Props){
    </section>
    <section className="space-y-4 rounded-xl bg-white p-5">
     <h2 className="text-xl font-bold">Otaqlar və QR kodları</h2>
-    <p className="text-sm text-amber-900">Otaq yalnız “Dolu” olduqda qonaq sifariş verə bilər. “Boş” statusuna keçid əvvəlki QR tokenini ləğv edir: yeni QR-ni çap edin. Cari qalma üzrə hesab qeydləri həll edilmədən otağı boşaltmaq mümkün deyil.</p>
+    <p className="text-sm text-amber-900">Otaq yalnız “Dolu” olduqda qonaq sifariş verə bilər. “Boş” statusuna keçid əvvəlki QR tokenini ləğv edir: yeni QR-ni çap edin. Otağın istənilən qalma dövrünə aid gözləyən hesab qeydi həll edilmədən otağı boşaltmaq mümkün deyil.</p>
     <form action={addHotelRoom} className="flex flex-wrap items-end gap-2">
      <label className="text-sm font-medium">Yeni otaq nömrəsi<input name="number" required pattern="[a-zA-Z0-9-]{1,20}" maxLength={20}
       placeholder="Məsələn: 101" className={input}/></label>
@@ -108,13 +108,13 @@ async function Panel({searchParams}:Props){
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
      {hotel.rooms.map(room=><article key={room.id} className="space-y-3 rounded-xl border border-zinc-200 p-4">
        <h3 className="text-lg font-bold">Otaq № {room.number}</h3>
-       {(pendingByRoom.get(room.id+":"+hotelRoomStayKey(hotel.id,room.id,room.qrNonce))??0)>0&&
-        <p className="text-xs font-semibold text-amber-900">Cari qalma üzrə gözləyən hesab qeydləri var. Otağı boşaltmadan əvvəl hesabları bağlayın.</p>}
+       {(pendingByRoom.get(room.id)??0)>0&&
+        <p className="text-xs font-semibold text-amber-900">Otaqda gözləyən hesab qeydləri var. Otağı boşaltmadan əvvəl bütün açıq qeydləri bağlayın.</p>}
        <form action={setHotelRoomStatus} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="roomId" value={room.id}/>
         <label className="text-sm">Status
          <select name="status" defaultValue={room.status} className={input}>
-          <option value="VACANT" disabled={!canReleaseHotelRoomWithCharges(room.status,"VACANT",pendingByRoom.get(room.id+":"+hotelRoomStayKey(hotel.id,room.id,room.qrNonce))??0)}>Boş</option><option value="OCCUPIED">Dolu</option><option value="OUT_OF_SERVICE">Xidmətdən kənar</option>
+          <option value="VACANT" disabled={!canReleaseHotelRoomWithCharges(room.status,"VACANT",pendingByRoom.get(room.id)??0)}>Boş</option><option value="OCCUPIED">Dolu</option><option value="OUT_OF_SERVICE">Xidmətdən kənar</option>
          </select>
         </label>
         <button type="submit" className="rounded-lg bg-zinc-800 px-3 py-2.5 text-sm text-white">Yadda saxla</button>

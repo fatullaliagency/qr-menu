@@ -348,6 +348,28 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   // Native OPTION disabled="" is authoritative; Playwright isDisabled() can
   // report false for an option when the parent SELECT itself is enabled.
   assert.notEqual(await roomCard.locator('option[value="VACANT"]').getAttribute("disabled"),null);
+  // Moving to emergency OUT_OF_SERVICE must not clear the pending charge,
+  // and must not allow an OUT_OF_SERVICE -> VACANT bypass.
+  await roomCard.locator('select[name="status"]').selectOption("OUT_OF_SERVICE");
+  await roomCard.getByRole("button",{name:"Yadda saxla"}).click();
+  for(let i=0;i<50;i++){
+   const state=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+   if(state.status==="OUT_OF_SERVICE")break;
+   await new Promise(done=>setTimeout(done,200));
+  }
+  await admin.goto(BASE+"/hotel-admin");
+  const outOfService=admin.locator("article").filter({
+   has:admin.getByRole("heading",{name:"Otaq № 101"})
+  });
+  assert.equal(await outOfService.locator('select[name="status"]').inputValue(),"OUT_OF_SERVICE");
+  assert.notEqual(await outOfService.locator('option[value="VACANT"]').getAttribute("disabled"),null);
+  await outOfService.locator('select[name="status"]').selectOption("OCCUPIED");
+  await outOfService.getByRole("button",{name:"Yadda saxla"}).click();
+  for(let i=0;i<50;i++){
+   const state=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+   if(state.status==="OCCUPIED")break;
+   await new Promise(done=>setTimeout(done,200));
+  }
 
   await admin.goto(BASE+"/hotel-admin/billing");
   const chargeCard=admin.locator('[data-charge-id="'+towelCharge.id+'"]');

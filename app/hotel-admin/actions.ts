@@ -14,7 +14,7 @@ import {getHotelStaffSession,deleteHotelStaffSession} from "@/app/lib/hotel-staf
 import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
 import {hashRestaurantPin} from "@/app/lib/pin-security";
 import {canApproveHotelRoomCharge,canVoidHotelRoomCharge} from "@/app/lib/hotel-billing-policy";
-import {shouldRotateHotelRoomToken,hotelRoomStayKey,canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
+import {shouldRotateHotelRoomToken,canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
 
 const BAD_LOGIN="Otel və ya PİN yanlışdır.";
 export async function loginHotel(form:FormData):Promise<void>{
@@ -80,12 +80,12 @@ export async function setHotelRoomStatus(form:FormData):Promise<void>{
   if(!current)throw new Error("Otaq tapılmadı.");
   const next=status as "VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";
   if(current.status===next)return;
-  if(current.status==="OCCUPIED"&&next==="VACANT"){
-   const pending=await tx.hotelRoomCharge.count({where:{
-    hotelId,roomId,status:"PENDING",stayKey:hotelRoomStayKey(hotelId,roomId,current.qrNonce)
-   }});
+  if(next==="VACANT"){
+   const pending=await tx.hotelRoomCharge.count({
+    where:{hotelId,roomId,status:"PENDING"}
+   });
    if(!canReleaseHotelRoomWithCharges(current.status,next,pending))
-    throw new Error("Otaq boşaldılmazdan əvvəl cari qalma üzrə hesabları təsdiqləyin və ya ləğv edin.");
+    throw new Error("Otaq boşaldılmazdan əvvəl bütün gözləyən otaq hesablarını təsdiqləyin və ya ləğv edin.");
   }
   const changed=await tx.hotelRoom.updateMany({
    where:{id:roomId,hotelId,status:current.status},

@@ -24,4 +24,7 @@ test("occupied checkout blocks pending folio charges and never blocks emergency 
  assert.equal(canReleaseHotelRoomWithCharges("OCCUPIED","OUT_OF_SERVICE",2),true);
  assert.equal(canReleaseHotelRoomWithCharges("VACANT","OCCUPIED",0),true);
  assert.equal(canReleaseHotelRoomWithCharges("OCCUPIED","VACANT",-1),false);
+ assert.equal(canReleaseHotelRoomWithCharges("OUT_OF_SERVICE","VACANT",1),false);
+ assert.equal(canReleaseHotelRoomWithCharges("OUT_OF_SERVICE","VACANT",0),true);
+ assert.equal(canReleaseHotelRoomWithCharges("OUT_OF_SERVICE","OCCUPIED",1),true);
 });
