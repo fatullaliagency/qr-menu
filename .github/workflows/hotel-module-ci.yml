@@ -55,3 +55,9 @@ jobs:
         run: npx tsc --noEmit
       - name: Next.js build
         run: npm run build
+      - name: Install disposable Chromium browser test tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: End-to-end hotel QR, guest, departments and isolation in Chromium
+        run: node --experimental-strip-types --test tests/integration/hotel-browser-e2e.test.mjs
