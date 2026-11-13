@@ -23,7 +23,7 @@ export async function loginHotel(form:FormData):Promise<void>{
  if(!ip) redirect("/hotel-admin?error=unavailable");
  const key=createHmac("sha256",getHotelSecret()).update("hotel-login:v1:"+slug+":"+ip).digest("hex");
  const prev=await db.adminLoginAttempt.findUnique({where:{key},select:{blockedUntil:true}});
- if(prev?.blockedUntil && prev.blockedUntil>Date.now())redirect("/hotel-admin?error=blocked");
+ if(prev?.blockedUntil && prev.blockedUntil.getTime()>Date.now())redirect("/hotel-admin?error=blocked");
  const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,pinCode:true}});
  const valid=Boolean(hotel && await verifyRestaurantPin(pin,hotel.pinCode));
  const result=await db.$transaction(async(tx)=>{

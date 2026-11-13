@@ -1,0 +1,57 @@
+name: Hotel module isolated tests
+on:
+  push:
+    branches:
+      - feature/hotel-module-v1
+  pull_request:
+    branches:
+      - feature/orders-v1
+permissions:
+  contents: read
+jobs:
+  test-hotel-module:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: qr_hotel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d qr_hotel_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_hotel_ci
+      ENABLE_HOTEL_MODULE: "true"
+      ENABLE_WEB_ORDERS: "true"
+      ADMIN_SESSION_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      QR_MENU_EPHEMERAL_DB_TEST: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Existing restaurant unit regressions
+        run: npm run test:orders
+      - name: Hotel unit tests
+        run: node --experimental-strip-types --test tests/hotel-module.test.mjs
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply migrations to disposable CI database
+        run: npx prisma migrate deploy
+      - name: Compare DB against schema
+        run: npx prisma db push --skip-generate
+      - name: Hotel DB isolation tests
+        run: node --experimental-strip-types --test tests/integration/hotel-isolation-db.test.mjs
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Next.js build
+        run: npm run build
