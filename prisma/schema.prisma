@@ -218,3 +218,139 @@ model OrderStatusEvent {
   @@index([orderId, createdAt])
   @@index([restaurantId, createdAt])
 }
+
+
+// Hotel data is a separate tenant domain. Restaurant and Order are unchanged.
+enum HotelRoomStatus {
+  VACANT
+  OCCUPIED
+  OUT_OF_SERVICE
+}
+enum HotelServiceCategory {
+  FOOD
+  ROOM_SERVICE
+  EXTRA
+}
+enum HotelDepartment {
+  KITCHEN
+  HOUSEKEEPING
+  RECEPTION
+}
+enum HotelRequestStatus {
+  NEW
+  ACCEPTED
+  PREPARING
+  DISPATCHED
+  COMPLETED
+}
+
+model Hotel {
+  id         String   @id @default(cuid())
+  name       String   @db.VarChar(120)
+  slug       String   @unique @db.VarChar(60)
+  branchName String?  @db.VarChar(120)
+  phone      String   @db.VarChar(30)
+  email      String?  @db.VarChar(200)
+  address    String?  @db.VarChar(300)
+  roomCount  Int      @default(0)
+  pinCode    String
+  createdAt  DateTime @default(now()) @db.Timestamp(3)
+
+  rooms    HotelRoom[]
+  services HotelService[]
+  requests HotelGuestRequest[]
+  orders   HotelOrder[]
+  events   HotelOrderEvent[]
+}
+
+model HotelRoom {
+  id        String          @id @default(cuid())
+  hotelId   String
+  hotel     Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  number    String          @db.VarChar(20)
+  status    HotelRoomStatus @default(VACANT)
+  qrNonce   String          @unique @default(cuid())
+  createdAt DateTime        @default(now()) @db.Timestamp(3)
+
+  requests HotelGuestRequest[]
+
+  @@unique([hotelId, number])
+  @@index([hotelId, status])
+}
+
+model HotelService {
+  id          String               @id @default(cuid())
+  hotelId     String
+  hotel       Hotel                @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name        String               @db.VarChar(120)
+  description String?              @db.VarChar(500)
+  category    HotelServiceCategory
+  department  HotelDepartment
+  price       Decimal              @default(0) @db.Decimal(10, 2)
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now()) @db.Timestamp(3)
+
+  @@index([hotelId, category, active])
+  @@index([hotelId, department, active])
+}
+
+model HotelGuestRequest {
+  id               String   @id @default(cuid())
+  hotelId          String
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomId           String
+  room             HotelRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  trackingTokenHash String  @db.VarChar(64)
+  createdAt        DateTime @default(now()) @db.Timestamp(3)
+  orders           HotelOrder[]
+
+  @@index([hotelId, createdAt])
+  @@index([hotelId, roomId, createdAt])
+}
+
+model HotelOrder {
+  id            String             @id @default(cuid())
+  hotelId       String
+  hotel         Hotel              @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  requestId     String
+  request       HotelGuestRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  department    HotelDepartment
+  status        HotelRequestStatus @default(NEW)
+  note          String?            @db.VarChar(500)
+  total         Decimal            @db.Decimal(10, 2)
+  roomCharge    Boolean            @default(true)
+  createdAt     DateTime           @default(now()) @db.Timestamp(3)
+  updatedAt     DateTime           @updatedAt
+  items         HotelOrderItem[]
+  events        HotelOrderEvent[]
+
+  @@index([hotelId, department, status, createdAt])
+  @@index([hotelId, createdAt])
+}
+
+model HotelOrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      HotelOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  serviceId  String
+  name       String   @db.VarChar(120)
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  lineTotal  Decimal  @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+model HotelOrderEvent {
+  id         String             @id @default(cuid())
+  hotelId    String
+  hotel      Hotel              @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  orderId    String
+  order      HotelOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus HotelRequestStatus?
+  toStatus   HotelRequestStatus
+  actor      String             @db.VarChar(40)
+  createdAt  DateTime           @default(now()) @db.Timestamp(3)
+
+  @@index([hotelId, orderId, createdAt])
+}
