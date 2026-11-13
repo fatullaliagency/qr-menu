@@ -83,6 +83,19 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
  const guestCtx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  const guest=await guestCtx.newPage();
 
+ await t.test("No-database phone diagnostics are available on the dedicated test host",async()=>{
+  const devicePage=await browser.newPage();
+  try{
+   const r=await devicePage.goto(BASE+"/hotel-device-check");
+   assert.equal(r?.status(),200);
+   await devicePage.getByRole("heading",{name:"Telefon və brauzer yoxlaması"}).waitFor({timeout:20000});
+   await devicePage.getByRole("button",{name:"Kameranı yoxla"}).waitFor();
+   await devicePage.getByRole("button",{name:"Test səsini çal"}).waitFor();
+   await devicePage.getByRole("button",{name:"Bildirişi yoxla"}).waitFor();
+   // No camera or notification permissions are requested without a user click.
+  }finally{await devicePage.close();}
+ });
+
  await t.test("Hotel manager PIN grants only own hotel dashboard",async()=>{
   await admin.goto(BASE+"/hotel-admin");
   await admin.locator('input[name="slug"]').fill(a.slug);

@@ -48,3 +48,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [ ] WebKit (iOS Safari-yə yaxın mühərrik) ilə eyni ssenarilərin disposable PostgreSQL üzərində CI sınağı — yeni workflow nəticəsini gözləyir.
 - [ ] Otelin bütün əməliyyat cədvəllərindən pg_dump, yeni PostgreSQL-ə pg_restore və 10 cədvəl üzrə məlumat bütövlüyü — yeni workflow nəticəsini gözləyir.
 - [ ] Bu testlər real iPhone/Android cihazları və real otel qəbul aktını əvəz etmir.
+
+## Fiziki telefon sınağı (ayrıca modul söndürülmüşkən də mümkündür)
+- [x] Test səhifəsi kodu əlavə olunub: /hotel-device-check; yalnız HOTEL_DEVICE_CHECK_ENABLED=true olan layihədə açılır.
+- [ ] Otel staging linkini real iPhone Safari və Android Chrome-da açıb kamera/səs/bildiriş testlərini yerinə yetirin.
+- [ ] Test nəticəsi istifadəçinin razılığı ilə kopyalanıb, qəbul qərarı qeyd edilib; səhifə heç bir görüntünü və şəxsi məlumatı serverə göndərmir.
+- [ ] Real QR ilə sifariş və şöbə bildirişi üçün ayrıca otel PostgreSQL bağlantısı hələ tələb olunur.

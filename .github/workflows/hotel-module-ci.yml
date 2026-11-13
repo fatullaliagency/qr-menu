@@ -31,6 +31,7 @@ jobs:
       ENABLE_WEB_ORDERS: "true"
       ADMIN_SESSION_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       QR_MENU_EPHEMERAL_DB_TEST: "true"
+      HOTEL_DEVICE_CHECK_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
