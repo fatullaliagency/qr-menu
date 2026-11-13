@@ -49,3 +49,8 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - APPROVED pulun ödənildiyini göstərmir. Xarici PMS/ödəmə API-ləri və real məxaric/ödəniş təsdiqləri hələ yoxdur.
 - Mövcud köhnə otel sifarişləri üçün avtomatik ledger backfill edilməyib; miqrasiya öncəsi ayrıca inventar/reconciliation lazımdır.
 - Superadmin otellərin daxili təsdiqli hesab məbləğini restoranın PAID gəlirindən ayrıca göstərir.
+
+## Qonaq status bildirişləri və idempotent retry
+- Eyni requestId yenidən göndəriləndə orijinal otel/otaq, bütün xidmət və saylar, qonaq qeydi uyğun olmalıdır; fərqli məzmun eyni izləmə linkini aça bilməz.
+- UUIDv4 formatı təsdiqlənir; PostgreSQL UNIQUE paralel təkrar yaradılmasını bloklayır.
+- Qonaq izləmə səhifəsində status hər 12 saniyədə yenilənir; istifadəçinin açıq razılığı olarsa brauzer Notification göstərir. Brauzer bağlı olanda push yoxdur, fiziki cihaz testi hələ aparılmayıb.

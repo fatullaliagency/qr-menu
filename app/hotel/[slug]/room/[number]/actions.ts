@@ -5,6 +5,7 @@ import {db} from "@/app/lib/db";
 import {getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,parseHotelCart,validHotelRoomNumber,hotelCategoryDepartment} from "@/app/lib/hotel-validation";
 import {hotelRoomToken,verifyHotelRoomToken,hotelTrackingTokenFromRequest,hashHotelTrackingToken} from "@/app/lib/hotel-security";
+import {isHotelRequestUUIDv4,isMatchingHotelRequest} from "@/app/lib/hotel-guest-idempotency";
 const MAX_CENTS=100_000_000;
 
 export async function createHotelGuestRequest(form:FormData):Promise<void> {
@@ -16,7 +17,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  const note=String(form.get("note")??"").trim();
  const lines=parseHotelCart(form.get("items"));
  if(!/^[a-z0-9-]{3,60}$/.test(slug)||!validHotelRoomNumber(roomNumber)||
-   !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(requestId)||
+   !isHotelRequestUUIDv4(requestId)||
    note.length>500||!lines)throw new Error("Sifariş məlumatları düzgün deyil.");
  const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true}});
  if(!hotel)throw new Error("Otel tapılmadı.");
@@ -30,11 +31,15 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  const trackingToken=hotelTrackingTokenFromRequest(getHotelSecret(),requestId);
  const trackingPath=`/hotel/${encodeURIComponent(slug)}/track/${encodeURIComponent(requestId)}?t=${encodeURIComponent(trackingToken)}`;
  // Unique clientRequestId means a resubmission is not charged twice.
+ const requestSelection={hotelId:true,roomId:true,
+  orders:{select:{note:true,items:{select:{serviceId:true,quantity:true}}}}
+ } as const;
  const existing=await db.hotelGuestRequest.findUnique({
-   where:{clientRequestId:requestId},select:{hotelId:true,roomId:true}
+   where:{clientRequestId:requestId},select:requestSelection
  });
  if(existing){
-  if(existing.hotelId!==hotel.id||existing.roomId!==room.id)throw new Error("Sifariş açarı başqa otağa aiddir.");
+  if(!isMatchingHotelRequest(existing,hotel.id,room.id,note,lines))
+    throw new Error("Bu sifariş açarı başqa sifariş məzmununa aiddir.");
   redirect(trackingPath);
  }
  const services=await db.hotelService.findMany({
@@ -79,9 +84,9 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  }catch(error){
   if(!(error instanceof Prisma.PrismaClientKnownRequestError && error.code==="P2002"))throw error;
   const replay=await db.hotelGuestRequest.findUnique({
-    where:{clientRequestId:requestId},select:{hotelId:true,roomId:true}
+    where:{clientRequestId:requestId},select:requestSelection
   });
-  if(!replay||replay.hotelId!==hotel.id||replay.roomId!==room.id)throw error;
+  if(!replay||!isMatchingHotelRequest(replay,hotel.id,room.id,note,lines))throw error;
  }
  redirect(trackingPath);
 }
