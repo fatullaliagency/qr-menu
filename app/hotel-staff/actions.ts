@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { verifyRestaurantPin } from "@/app/lib/pin-security";
-import { getHotelSecret } from "@/app/lib/hotel-auth";
+import { getHotelSecret, deleteHotelSession } from "@/app/lib/hotel-auth";
 import { createHotelStaffSession, deleteHotelStaffSession } from "@/app/lib/hotel-staff-auth";
 import { normalizeHotelStaffUsername } from "@/app/lib/hotel-staff-policy";
 import { hotelModuleEnabled } from "@/app/lib/hotel-validation";
@@ -48,6 +48,8 @@ export async function loginHotelStaff(form: FormData): Promise<void> {
   });
   if (result !== "success" || !staff)
     redirect("/hotel-staff?error=" + (result === "blocked" ? "blocked" : "login"));
+  // Prevent stale manager credentials from elevating the employee on shared devices.
+  await deleteHotelSession();
   await createHotelStaffSession(staff);
   redirect("/hotel-admin/panel/" + staff.department.toLowerCase());
 }

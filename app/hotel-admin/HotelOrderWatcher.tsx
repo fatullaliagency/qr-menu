@@ -15,6 +15,13 @@ export default function HotelOrderWatcher({department}:{department:HotelDepartme
   const poll=async()=>{
    try{
     const r=await fetch("/hotel-admin/notifications?department="+department,{cache:"no-store",credentials:"same-origin"});
+    if(r.status===401||r.status===403){
+      setCount(null);setMessage("Giriş icazəsi başa çatıb.");
+      scope.current=null;baseline.current=null;started.current=false;
+      enabled.current=false;setAlertEnabled(false);
+      router.replace("/hotel-staff");
+      return;
+    }
     if(!r.ok)throw new Error();
     const json=await r.json() as {scope:string;newCount:number;latest:Latest|null};
     if(stopped)return;

@@ -54,3 +54,5 @@ Bu dəyişiklik `feature/hotel-module-v1` filialında hazırlanır və
 - Eyni requestId yenidən göndəriləndə orijinal otel/otaq, bütün xidmət və saylar, qonaq qeydi uyğun olmalıdır; fərqli məzmun eyni izləmə linkini aça bilməz.
 - UUIDv4 formatı təsdiqlənir; PostgreSQL UNIQUE paralel təkrar yaradılmasını bloklayır.
 - Qonaq izləmə səhifəsində status hər 12 saniyədə yenilənir; istifadəçinin açıq razılığı olarsa brauzer Notification göstərir. Brauzer bağlı olanda push yoxdur, fiziki cihaz testi hələ aparılmayıb.
+
+- Eyni brauzerdə əməkdaş girişi menecer sessiyasını, menecer girişi isə əməkdaş sessiyasını ləğv edir. 401/403 bildiriş cavabından sonra şöbə ekranında yenidən giriş tələb olunur.

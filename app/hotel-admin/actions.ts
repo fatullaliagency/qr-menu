@@ -10,7 +10,7 @@ import {hotelModuleEnabled,hotelCategoryDepartment,isHotelCategory,validHotelRoo
 import {randomUUID} from "node:crypto";
 import {revalidatePath} from "next/cache";
 import {Prisma} from "@prisma/client";
-import {getHotelStaffSession} from "@/app/lib/hotel-staff-auth";
+import {getHotelStaffSession,deleteHotelStaffSession} from "@/app/lib/hotel-staff-auth";
 import {normalizeHotelStaffUsername,canStaffAccessHotelDepartment} from "@/app/lib/hotel-staff-policy";
 import {hashRestaurantPin} from "@/app/lib/pin-security";
 import {canApproveHotelRoomCharge,canVoidHotelRoomCharge} from "@/app/lib/hotel-billing-policy";
@@ -42,6 +42,7 @@ export async function loginHotel(form:FormData):Promise<void>{
    return count>=5?"blocked":"invalid";
  });
  if(result!=="success" || !hotel)redirect("/hotel-admin?error="+(result==="blocked"?"blocked":"login"));
+ await deleteHotelStaffSession();
  await createHotelSession(hotel.id);
  redirect("/hotel-admin");
 }
