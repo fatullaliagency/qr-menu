@@ -2,6 +2,7 @@ import "server-only";
 import {createHmac, timingSafeEqual} from "node:crypto";
 import {cookies} from "next/headers";
 import {connection} from "next/server";
+import {hotelRuntimeSecureCookie} from "@/app/lib/hotel-cookie-policy";
 
 const COOKIE="qr_hotel_session";
 const TTL_SECONDS=60*60*8;
@@ -19,7 +20,7 @@ export async function createHotelSession(hotelId:string):Promise<void> {
  const session:HotelSession={hotelId,expiresAt:Date.now()+TTL_SECONDS*1000};
  const payload=Buffer.from(JSON.stringify(session)).toString("base64url");
  (await cookies()).set(COOKIE,payload+"."+sign(payload).toString("hex"),{
-  httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",
+  httpOnly:true,secure:hotelRuntimeSecureCookie(),sameSite:"lax",
   path:"/hotel-admin",maxAge:TTL_SECONDS,
  });
 }
@@ -39,5 +40,5 @@ export async function getHotelSession():Promise<HotelSession|null> {
  } catch { return null; }
 }
 export async function deleteHotelSession():Promise<void>{
- (await cookies()).set(COOKIE,"",{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/hotel-admin",maxAge:0});
+ (await cookies()).set(COOKIE,"",{httpOnly:true,secure:hotelRuntimeSecureCookie(),sameSite:"lax",path:"/hotel-admin",maxAge:0});
 }

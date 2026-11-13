@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { db } from "@/app/lib/db";
 import { getHotelSecret } from "@/app/lib/hotel-auth";
+import {hotelRuntimeSecureCookie} from "@/app/lib/hotel-cookie-policy";
 import type { HotelDepartmentName } from "@/app/lib/hotel-validation";
 
 const COOKIE = "qr_hotel_staff_session";
@@ -25,7 +26,7 @@ export async function createHotelStaffSession(staff: {
   };
   const payload = Buffer.from(JSON.stringify(value)).toString("base64url");
   (await cookies()).set(COOKIE, payload + "." + signature(payload).toString("hex"), {
-    httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+    httpOnly: true, sameSite: "lax", secure: hotelRuntimeSecureCookie(),
     path: "/hotel-admin", maxAge: TTL
   });
 }
@@ -57,7 +58,7 @@ export async function getHotelStaffSession(): Promise<{
 }
 export async function deleteHotelStaffSession(): Promise<void> {
   (await cookies()).set(COOKIE, "", {
-    httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+    httpOnly: true, sameSite: "lax", secure: hotelRuntimeSecureCookie(),
     path: "/hotel-admin", maxAge: 0
   });
 }

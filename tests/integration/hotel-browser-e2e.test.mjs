@@ -112,10 +112,27 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   await guest.goto(guestUrl,{waitUntil:"domcontentloaded"});
   await guest.getByRole("heading",{name:"CI Hotel Soup"}).waitFor({timeout:20000});
   await guest.getByRole("heading",{name:"CI Hotel Towel"}).waitFor({timeout:20000});
+  // A streamed server heading can precede React hydration on slower/mobile
+  // engines. Wait for the client-generated UUID before changing controlled inputs.
+  await guest.waitForFunction(()=>{
+   const id=document.querySelector('input[name="requestId"]')?.value;
+   return typeof id==="string"&&id.length===36;
+  },null,{timeout:20000});
   const controls=guest.locator('input[type="number"]');
   assert.equal(await controls.count(),2);
   await controls.nth(0).fill("2");
+  await guest.waitForFunction(()=>{
+    const raw=document.querySelector('input[name="items"]')?.value||"[]";
+    try{const x=JSON.parse(raw);return x.length===1&&x[0].quantity===2;}catch{return false;}
+  },null,{timeout:15000});
   await controls.nth(1).fill("1");
+  await guest.waitForFunction(()=>{
+    const raw=document.querySelector('input[name="items"]')?.value||"[]";
+    try{
+     const x=JSON.parse(raw);
+     return x.length===2&&x.some(v=>v.quantity===2)&&x.some(v=>v.quantity===1);
+    }catch{return false;}
+  },null,{timeout:15000});
   await guest.getByRole("button",{name:"Otaq hesabına sifariş göndər"}).click();
   await guest.waitForURL(/\/hotel\/[^/]+\/track\/[0-9a-f-]+\?t=[A-Za-z0-9_-]{43}/,{timeout:30000});
   requestId=decodeURIComponent(guest.url().match(/\/track\/([^?]+)/)?.[1]??"");
