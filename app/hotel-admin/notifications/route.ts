@@ -15,11 +15,14 @@ export async function GET(req:NextRequest){
  if(staff&&!canStaffAccessHotelDepartment(staff.department,department))
   return NextResponse.json({error:"Bu şöbəyə icazə yoxdur"},{status:403,headers:H});
  const hotelId=(manager?.hotelId??staff?.hotelId)!;
- const [count,last]=await Promise.all([
+ const [count,last,lastChanged]=await Promise.all([
   db.hotelOrder.count({where:{hotelId:hotelId,department,status:"NEW"}}),
   db.hotelOrder.findFirst({where:{hotelId:hotelId,department},
     orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,createdAt:true}}),
+  db.hotelOrder.findFirst({where:{hotelId,department},
+    orderBy:[{updatedAt:"desc"},{id:"desc"}],select:{updatedAt:true}}),
  ]);
  return NextResponse.json({scope:hotelId,department,newCount:count,
-  latest:last?{id:last.id,createdAt:last.createdAt.toISOString()}:null},{headers:H});
+  latest:last?{id:last.id,createdAt:last.createdAt.toISOString()}:null,
+  lastChangedAt:lastChanged?.updatedAt.toISOString()??null},{headers:H});
 }

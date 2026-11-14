@@ -3,29 +3,37 @@ import {useEffect,useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 import type {HotelDepartmentName} from "@/app/lib/hotel-validation";
 type Latest={id:string;createdAt:string};
+type Snapshot={scope:string;newCount:number;lastChangedAt:string|null};
 export default function HotelOrderWatcher({department}:{department:HotelDepartmentName}){
  const router=useRouter();
  const [count,setCount]=useState<number|null>(null);
  const [alertEnabled,setAlertEnabled]=useState(false);
  const [message,setMessage]=useState("");
  const scope=useRef<string|null>(null),baseline=useRef<Latest|null>(null),started=useRef(false);
+ const snapshot=useRef<Snapshot|null>(null);
  const enabled=useRef(false),audio=useRef<AudioContext|null>(null);
  useEffect(()=>{
   let stopped=false;
+  let inFlight=false;
   const poll=async()=>{
+   if(inFlight||stopped)return;
+   inFlight=true;
    try{
     const r=await fetch("/hotel-admin/notifications?department="+department,{cache:"no-store",credentials:"same-origin"});
+    if(stopped)return;
     if(r.status===401||r.status===403){
       setCount(null);setMessage("Giriş icazəsi başa çatıb.");
-      scope.current=null;baseline.current=null;started.current=false;
+      scope.current=null;baseline.current=null;started.current=false;snapshot.current=null;
       enabled.current=false;setAlertEnabled(false);
       router.replace("/hotel-staff");
       return;
     }
     if(!r.ok)throw new Error();
-    const json=await r.json() as {scope:string;newCount:number;latest:Latest|null};
+    const json=await r.json() as Snapshot&{latest:Latest|null};
     if(stopped)return;
-    if(scope.current!==null && scope.current!==json.scope){started.current=false;baseline.current=null;enabled.current=false;setAlertEnabled(false);}
+    if(scope.current!==null && scope.current!==json.scope){
+     started.current=false;baseline.current=null;snapshot.current=null;enabled.current=false;setAlertEnabled(false);
+    }
     scope.current=json.scope;
     const prev=baseline.current,latest=json.latest;
     const isNew=started.current && latest &&
@@ -34,6 +42,10 @@ export default function HotelOrderWatcher({department}:{department:HotelDepartme
       baseline.current=latest;
     }
     started.current=true;
+    const previous=snapshot.current;
+    const shouldRefresh=Boolean(previous&&previous.scope===json.scope&&
+      (previous.newCount!==json.newCount||previous.lastChangedAt!==json.lastChangedAt));
+    snapshot.current={scope:json.scope,newCount:json.newCount,lastChangedAt:json.lastChangedAt};
     setCount(json.newCount);
     if(isNew){
       setMessage("Yeni otel müraciəti daxil oldu.");
@@ -48,8 +60,9 @@ export default function HotelOrderWatcher({department}:{department:HotelDepartme
        }catch{}
       }
     }
-    if(document.visibilityState==="visible")router.refresh();
+    if(shouldRefresh&&document.visibilityState==="visible")router.refresh();
    }catch{if(!stopped)setMessage("Bildiriş yenilənməsi müvəqqəti mümkün deyil.");}
+   finally{inFlight=false;}
   };
   void poll();
   const interval=window.setInterval(()=>void poll(),10000);
