@@ -1,0 +1,105 @@
+"use server";
+import {redirect} from "next/navigation";
+import {Prisma, type HotelDepartment} from "@prisma/client";
+import {db} from "@/app/lib/db";
+import {getHotelSecret} from "@/app/lib/hotel-auth";
+import {hotelModuleEnabled,parseHotelCart,validHotelRoomNumber,hotelCategoryDepartment} from "@/app/lib/hotel-validation";
+import {hotelRoomToken,verifyHotelRoomToken,hotelTrackingTokenFromRequest,hashHotelTrackingToken} from "@/app/lib/hotel-security";
+import {isHotelRequestUUIDv4,isMatchingHotelRequest} from "@/app/lib/hotel-guest-idempotency";
+import {hotelRoomStayKey} from "@/app/lib/hotel-stay";
+const MAX_CENTS=100_000_000;
+
+export async function createHotelGuestRequest(form:FormData):Promise<void> {
+ if(!hotelModuleEnabled())throw new Error("Otel modulu deaktivdir.");
+ const slug=String(form.get("slug")??"").trim();
+ const roomNumber=String(form.get("roomNumber")??"").trim();
+ const token=form.get("roomToken");
+ const requestId=String(form.get("requestId")??"");
+ const note=String(form.get("note")??"").trim();
+ const lines=parseHotelCart(form.get("items"));
+ if(!/^[a-z0-9-]{3,60}$/.test(slug)||!validHotelRoomNumber(roomNumber)||
+   !isHotelRequestUUIDv4(requestId)||
+   note.length>500||!lines)throw new Error("Sifariş məlumatları düzgün deyil.");
+ const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true,transferEnabled:true,spaEnabled:true}});
+ if(!hotel)throw new Error("Otel tapılmadı.");
+ const room=await db.hotelRoom.findFirst({
+  where:{hotelId:hotel.id,number:roomNumber},
+  select:{id:true,qrNonce:true,status:true},
+ });
+ if(!room||room.status!=="OCCUPIED"||
+   !verifyHotelRoomToken(getHotelSecret(),hotel.id,room.id,room.qrNonce,token))
+  throw new Error("Otaq QR kodu etibarsızdır və ya otaq aktiv deyil.");
+ const trackingToken=hotelTrackingTokenFromRequest(getHotelSecret(),requestId);
+ const trackingPath=`/hotel/${encodeURIComponent(slug)}/track/${encodeURIComponent(requestId)}?t=${encodeURIComponent(trackingToken)}`;
+ // Unique clientRequestId means a resubmission is not charged twice.
+ const requestSelection={hotelId:true,roomId:true,
+  orders:{select:{note:true,items:{select:{serviceId:true,quantity:true}}}}
+ } as const;
+ const existing=await db.hotelGuestRequest.findUnique({
+   where:{clientRequestId:requestId},select:requestSelection
+ });
+ if(existing){
+  if(!isMatchingHotelRequest(existing,hotel.id,room.id,note,lines))
+    throw new Error("Bu sifariş açarı başqa sifariş məzmununa aiddir.");
+  redirect(trackingPath);
+ }
+ const services=await db.hotelService.findMany({
+  where:{hotelId:hotel.id,active:true,id:{in:lines.map(x=>x.serviceId)}},
+  select:{id:true,name:true,price:true,category:true,department:true},
+ });
+ if(services.length!==lines.length)throw new Error("Seçilmiş xidmətlərdən biri aktiv deyil.");
+ const lookup=new Map(services.map(x=>[x.id,x]));
+ const grouped=new Map<string,{serviceId:string;name:string;quantity:number;unitPrice:Prisma.Decimal;lineTotal:Prisma.Decimal;}[]>();
+ let grandCents=0;
+ for(const line of lines){
+  const s=lookup.get(line.serviceId);
+  if(!s||!({FOOD:hotel.foodEnabled,ROOM_SERVICE:hotel.roomServiceEnabled,EXTRA:hotel.extraEnabled,TRANSFER:hotel.transferEnabled,SPA:hotel.spaEnabled}[s.category])||s.department!==hotelCategoryDepartment(s.category))throw new Error("Xidmətin şöbəsi yanlışdır.");
+  const cents=Math.round(Number(s.price)*100);
+  const amount=cents*line.quantity;
+  if(!Number.isSafeInteger(cents)||cents<0||cents>MAX_CENTS||
+     !Number.isSafeInteger(amount)||amount<0||grandCents+amount>MAX_CENTS)throw new Error("Məbləğ yanlışdır.");
+  grandCents+=amount;
+  const items=grouped.get(s.department)??[];
+  items.push({serviceId:s.id,name:s.name,quantity:line.quantity,
+   unitPrice:new Prisma.Decimal(cents).div(100),
+   lineTotal:new Prisma.Decimal(amount).div(100)});
+  grouped.set(s.department,items);
+ }
+ try{
+ await db.$transaction(async tx=>{
+  // Lock the exact hotel/room row before writing orders or pending charges.
+  // A concurrent checkout must wait, so it sees the pending charge or the request fails.
+  const locked=await tx.$queryRaw<{status:"VACANT"|"OCCUPIED"|"OUT_OF_SERVICE";qrNonce:string}[]>`
+   SELECT "status","qrNonce" FROM public."HotelRoom"
+   WHERE "id"=${room.id} AND "hotelId"=${hotel.id} FOR UPDATE
+  `;
+  if(!locked[0]||locked[0].status!=="OCCUPIED"||
+     !verifyHotelRoomToken(getHotelSecret(),hotel.id,room.id,locked[0].qrNonce,token))
+   throw new Error("Otaq artıq aktiv deyil; sifariş qəbul edilmədi.");
+  await tx.hotelGuestRequest.create({data:{
+  clientRequestId:requestId,hotelId:hotel.id,roomId:room.id,
+  trackingTokenHash:hashHotelTrackingToken(trackingToken),
+  orders:{create:[...grouped.entries()].map(([department,items])=>({
+   hotelId:hotel.id,department:department as HotelDepartment,
+   note:note||null,total:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
+   roomCharge:true,
+   items:{create:items},
+   charge:{create:{
+    hotelId:hotel.id,roomId:room.id,
+    stayKey:hotelRoomStayKey(hotel.id,room.id,room.qrNonce),
+    amount:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
+    events:{create:{hotelId:hotel.id,toStatus:"PENDING" as const,actor:"GUEST"}},
+   }},
+   events:{create:{hotelId:hotel.id,toStatus:"NEW" as const,actor:"GUEST"}},
+  }))},
+  }});
+ },{timeout:10000});
+ }catch(error){
+  if(!(error instanceof Prisma.PrismaClientKnownRequestError && error.code==="P2002"))throw error;
+  const replay=await db.hotelGuestRequest.findUnique({
+    where:{clientRequestId:requestId},select:requestSelection
+  });
+  if(!replay||!isMatchingHotelRequest(replay,hotel.id,room.id,note,lines))throw error;
+ }
+ redirect(trackingPath);
+}
