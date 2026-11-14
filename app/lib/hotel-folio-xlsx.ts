@@ -111,8 +111,8 @@ function mainSheet(hotel:string,data:HotelFolioCsvRow[],from:string,to:string):s
  '<pane ySplit="8" topLeftCell="A9" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
  '<sheetFormatPr defaultRowHeight="19"/><cols>'+cols([24,12,27,22,22,18,23,23])+'</cols>'+
  '<sheetData>'+lines.join("")+'</sheetData>'+
- '<mergeCells count="3"><mergeCell ref="A1:H2"/><mergeCell ref="A3:H3"/><mergeCell ref="A7:H7"/></mergeCells>'+
  '<autoFilter ref="A8:H'+last+'"/>'+
+ '<mergeCells count="3"><mergeCell ref="A1:H2"/><mergeCell ref="A3:H3"/><mergeCell ref="A7:H7"/></mergeCells>'+
  '<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>'+
  '</worksheet>';
 }
@@ -134,8 +134,9 @@ function detailSheet(data:HotelFolioCsvRow[]):string{
  '<dimension ref="A1:I'+last+'"/>'+
  '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
  '<sheetFormatPr defaultRowHeight="19"/><cols>'+cols([24,12,36,27,18,20,20,27,27])+'</cols>'+
- '<sheetData>'+lines.join("")+'</sheetData><mergeCells count="1"><mergeCell ref="A1:I2"/></mergeCells>'+
- '<autoFilter ref="A3:I'+last+'"/></worksheet>';
+ '<sheetData>'+lines.join("")+'</sheetData>'+
+ '<autoFilter ref="A3:I'+last+'"/>'+
+ '<mergeCells count="1"><mergeCell ref="A1:I2"/></mergeCells></worksheet>';
 }
 const crcTable=Array.from({length:256},(_,n)=>{
  let c=n;for(let i=0;i<8;i++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);
