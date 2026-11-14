@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { db } from "@/app/lib/db";
 import { getHotelSecret } from "@/app/lib/hotel-auth";
 import {hotelRuntimeSecureCookie} from "@/app/lib/hotel-cookie-policy";
-import type { HotelDepartmentName } from "@/app/lib/hotel-validation";
+import { isHotelDepartment, type HotelDepartmentName } from "@/app/lib/hotel-validation";
 
 const COOKIE = "qr_hotel_staff_session";
 const TTL = 60 * 60 * 8;
@@ -44,7 +44,7 @@ export async function getHotelStaffSession(): Promise<{
   catch { return null; }
   if (!data || typeof data.staffId !== "string" || typeof data.hotelId !== "string" ||
       typeof data.version !== "string" || typeof data.expiresAt !== "number" ||
-      data.expiresAt <= Date.now() || !["KITCHEN", "HOUSEKEEPING", "RECEPTION"].includes(String(data.department)))
+      data.expiresAt <= Date.now() || !isHotelDepartment(data.department))
     return null;
   // A disabled, reassigned or PIN-reset staff member loses access immediately.
   const staff = await db.hotelStaff.findFirst({
