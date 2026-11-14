@@ -168,7 +168,8 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    // WebKit does not consistently expose navigation POST responses via page events.
    // Verify the HTTP redirect and cookie deletion separately, in the same context.
    const logoutResponse=await superCtx.request.post(BASE+"/superadmin/logout",{
-    headers:{origin:BASE},maxRedirects:0,
+    // APIRequestContext is not a browser navigation; supply browser fetch metadata.
+    headers:{origin:BASE,"sec-fetch-site":"same-origin"},maxRedirects:0,
    });
    assert.equal(logoutResponse.status(),303,"Logout POST must issue a 303 See Other");
    assert.equal(logoutResponse.headers()["set-cookie"]?.includes("qr_superadmin_session="),true,
