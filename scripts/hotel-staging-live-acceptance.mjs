@@ -1,16 +1,17 @@
 /**
- * Preview-only hotel database acceptance. Temporary fixtures auto-delete.
+ * Preview-only hotel database acceptance in local production Next HTTP runtime. Temporary fixtures auto-delete.
  * Never logs database host, PINs, QR bearer or tracking tokens.
  */
 import assert from "node:assert/strict";
 import { randomBytes,randomInt,randomUUID,scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import {PrismaClient} from "@prisma/client";
 import {hotelRoomToken,verifyHotelRoomToken,hotelTrackingTokenFromRequest,hashHotelTrackingToken} from "../app/lib/hotel-security.ts";
 import {hotelRoomStayKey,canReleaseHotelRoomWithCharges,shouldRotateHotelRoomToken} from "../app/lib/hotel-stay.ts";
 
 const allowedProject="prj_2AX2rvep2HL0X0hqjKZDuurYHHLy";
-const allowedDomain="https://qr-menu-hotel-staging-gk11hpbmo-fatullali.vercel.app";
+const allowedDomain="http://127.0.0.1:3199"; // Local production Next runtime; Vercel Preview itself is SSO protected.
 if(process.env.VERCEL_ENV!=="preview"||
    (process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID!==allowedProject)||
    (process.env.VERCEL_GIT_COMMIT_REF && process.env.VERCEL_GIT_COMMIT_REF!=="feature/hotel-module-v1")||
@@ -22,6 +23,7 @@ if(process.env.VERCEL_ENV!=="preview"||
 
 const db=new PrismaClient({log:[]});
 const ids=[];
+let server;
 const scrypt=promisify(scryptCallback);
 const secret=process.env.ADMIN_SESSION_SECRET;
 const ref=randomUUID().slice(0,12);
@@ -33,6 +35,23 @@ const fetchHtml=async url=>{
  return {status:r.status,body:await r.text()};
 };
 try{
+ stage="starting Next production HTTP server";
+ server=spawn(process.execPath,["node_modules/next/dist/bin/next","start","-H","127.0.0.1","-p","3199"],{
+  env:process.env,stdio:["ignore","pipe","pipe"]
+ });
+ // Drain output without writing it to build logs, which may contain private request information.
+ server.stdout?.on("data",()=>{});
+ server.stderr?.on("data",()=>{});
+ let serverReady=false;
+ for(let i=0;i<90;i++){
+  if(server.exitCode!==null)break;
+  try{
+   const response=await fetch(allowedDomain+"/hotel-admin",{signal:AbortSignal.timeout(1000)});
+   if(response.status===200){serverReady=true;break;}
+  }catch{}
+  await new Promise(resolve=>setTimeout(resolve,200));
+ }
+ check("Next.js production runtime starts",serverReady);
  stage="database metadata";
  const meta=await db.$queryRawUnsafe("SELECT current_database() AS db, (SELECT COUNT(*)::integer FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE') AS tables");
  check("database identity",meta[0]?.db==="postgres"||meta[0]?.db==="qr_menu_hotel_staging");
@@ -56,7 +75,7 @@ try{
  const token=hotelRoomToken(secret,a.id,ra.id,ra.qrNonce);
  stage="hosted QR / tenant isolation";
  const alpha=await fetchHtml(allowedDomain+"/hotel/"+a.slug+"/room/101?t="+token);
- check("live Alpha room visible",alpha.status===200&&alpha.body.includes(a.name));
+ check("local Next production Alpha room visible",alpha.status===200&&alpha.body.includes(a.name));
  for(const s of services)check("live menu includes "+s.category,alpha.body.includes(s.name));
  const cross=await fetchHtml(allowedDomain+"/hotel/"+b.slug+"/room/101?t="+token);
  check("cross-hotel QR denied",!cross.body.includes(b.name)&&!cross.body.includes("QA Transfer "+ref));
@@ -86,7 +105,7 @@ try{
  const trackUrl=allowedDomain+"/hotel/"+a.slug+"/track/"+requestId+"/status";
  const good=await fetch(trackUrl+"?t="+tracking,{cache:"no-store",signal:AbortSignal.timeout(25000)});
  const data=await good.json();
- check("hosted tracking displays five departments",good.status===200&&data.orders?.length===5);
+ check("Next HTTP tracking displays five departments",good.status===200&&data.orders?.length===5);
  const denied=await fetch(trackUrl,{cache:"no-store",signal:AbortSignal.timeout(25000)});
  check("tracking needs bearer token",denied.status===404);
  const other=await fetch(allowedDomain+"/hotel/"+b.slug+"/track/"+requestId+"/status?t="+tracking,{cache:"no-store",signal:AbortSignal.timeout(25000)});
@@ -95,7 +114,7 @@ try{
  await db.hotelOrder.update({where:{id:first.id},data:{status:"ACCEPTED",events:{create:{hotelId:a.id,fromStatus:"NEW",toStatus:"ACCEPTED",actor:"HOTEL_MANAGER"}}}});
  const changed=await fetch(trackUrl+"?t="+tracking,{cache:"no-store",signal:AbortSignal.timeout(25000)});
  const after=await changed.json();
- check("hosted tracking displays status change",changed.status===200&&after.orders.some(o=>o.id===first.id&&o.status==="ACCEPTED"));
+ check("Next HTTP tracking displays status change",changed.status===200&&after.orders.some(o=>o.id===first.id&&o.status==="ACCEPTED"));
  check("request remains idempotent",await db.hotelGuestRequest.count({where:{clientRequestId:requestId}})===1);
  stage="folio approval checkout and QR rotation";
  for(const order of orders)await db.hotelRoomCharge.update({
@@ -111,15 +130,22 @@ try{
  const updated=await db.hotelRoom.findUniqueOrThrow({where:{id:ra.id}});
  check("old bearer invalid after checkout",!verifyHotelRoomToken(secret,a.id,ra.id,updated.qrNonce,token));
  const expired=await fetchHtml(allowedDomain+"/hotel/"+a.slug+"/room/101?t="+token);
- check("hosted old QR denied",!expired.body.includes("QA Yemək "+ref));
+ check("Next HTTP old QR denied",!expired.body.includes("QA Yemək "+ref));
  const audits=await db.hotelRoomStatusEvent.findMany({where:{hotelId:a.id,roomId:ra.id}});
  check("status audit recorded",audits.length===1&&audits[0].qrRotated);
  check("other hotel not checked out",(await db.hotelRoom.findUniqueOrThrow({where:{id:rb.id}})).status==="OCCUPIED");
- console.log("HOTEL_LIVE_ACCEPTANCE_PASS: "+checks+" assertions; isolated database and hosted QR/tracking.");
+ console.log("HOTEL_LIVE_ACCEPTANCE_PASS: "+checks+" assertions; isolated DB and local Next production HTTP QR/tracking.");
 }catch{
  console.error("HOTEL_LIVE_ACCEPTANCE_FAILED_AT: "+stage+"; temporary fixtures will be removed.");
  process.exitCode=1;
 }finally{
+ if(server?.exitCode===null){
+  server.kill("SIGTERM");
+  await Promise.race([
+   new Promise(resolve=>server.once("exit",resolve)),
+   new Promise(resolve=>setTimeout(resolve,2000))
+  ]);
+ }
  try{
   if(ids.length)await db.hotel.deleteMany({where:{id:{in:ids}}});
   const remaining=ids.length?await db.hotel.count({where:{id:{in:ids}}}):0;
