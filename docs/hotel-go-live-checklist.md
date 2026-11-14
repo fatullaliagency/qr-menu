@@ -35,7 +35,7 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [ ] Otel meneceri və sifariş operatorları real cihaz qəbulunu təsdiqləyib.
 - [ ] Data migration və rollback planı yoxlanıb; ayrıca production release razılığı alınıb.
 
-**Cari vəziyyət:** ayrı canlı otel test bazası və real cihaz qəbul testi təsdiqlənmədiyi üçün production release etmək olmaz.
+**Cari vəziyyət:** izolyasiya edilmiş otel Preview bazası və avtomatlaşdırılmış sınaqlar təsdiqlənib. Fiziki iPhone/Android və real operator qəbul nəticələri, production DB backup/restore sübutu və ayrıca release razılığı olmadığından **production release etmək olmaz**.
 
 ## Isolated staging enablement
 - [x] `qr-menu-hotel-staging` Preview aktiv, Production deaktiv saxlanılıb; superadmin Preview daxilində giriş tələb edir.
@@ -80,3 +80,13 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 ## Superadmin logout təhlükəsizliyi
 - [x] Superadmin çıxışı yalnız same-origin POST ilə `/superadmin/logout` marşrutundan 303 yönləndirmə edir; çıxış kukisi birbaşa `NextResponse.cookies.set` vasitəsilə path-matched `Max-Age=0` və `Expires` ilə silinir.
 - [x] CI e2e-də cross-origin logout sorğusunun 403 olması, çıxışdan sonra serverin protected `/superadmin/hotels/new` səhifəsində yeni otel formasını göstərməməsi yoxlanır.
+
+## Buraxılışa hazırlıq — 15 noyabr 2026
+
+- [x] Son emulyasiya CI testləri: [otel run 43616095926](https://github.com/fatullaliagency/qr-menu/actions/runs/43616095926) — Chromium **16 PASS**, WebKit **16 PASS**, PostgreSQL backup/restore **PASS**.
+- [x] [Restoran regresiyası](https://github.com/fatullaliagency/qr-menu/actions/runs/43616095929) — **SUCCESS**.
+- [x] Production keçid ardıcıllığı, müstəqil backup, rollback və operatorun imzalayacağı M01–M12 qəbul protokolu sənədləşdirilib: [hotel-production-release-runbook.md](hotel-production-release-runbook.md).
+- [ ] Real telefon və operator tərəfindən M01–M12 qəbul qeydi doldurulub və [Issue #2](https://github.com/fatullaliagency/qr-menu/issues/2) daxilində təsdiqlənib.
+- [ ] Hədəf production DB-nin ayrıca backup-u real bərpa ilə yoxlanıb; `main` inteqrasiya testləri və yazılı production release razılığı tamamlanıb.
+
+> Sənədin hazırlanması testi və təsdiqi əvəz etmir. GitHub-dakı otel feature branch-i `main` ilə birləşdirilməyib; production mühiti dəyişdirilməyib.
