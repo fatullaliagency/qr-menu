@@ -452,6 +452,33 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   assert.match(report.csv,/Daxili təsdiq/);
   assert.match(report.csv,/13,00/);
   assert.doesNotMatch(report.csv,/CI Hotel Beta/);
+  // The manager-facing button now downloads an actual binary XLSX, not CSV.
+  const xlsxReport=await admin.evaluate(async()=>{
+    const r=await fetch("/hotel-admin/billing/export-xlsx",{credentials:"same-origin",cache:"no-store"});
+    const b=new Uint8Array(await r.arrayBuffer());
+    return {
+      status:r.status,type:r.headers.get("content-type"),
+      disposition:r.headers.get("content-disposition"),
+      cache:r.headers.get("cache-control"),
+      size:b.length,signature:Array.from(b.slice(0,4))
+    };
+  });
+  assert.equal(xlsxReport.status,200);
+  assert.match(xlsxReport.type??"",/application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
+  assert.match(xlsxReport.disposition??"",/\.xlsx"/);
+  assert.match(xlsxReport.cache??"",/no-store/);
+  assert.deepEqual(xlsxReport.signature,[80,75,3,4]);
+  assert.ok(xlsxReport.size>1500);
+  const forbiddenXlsx=await guest.evaluate(async()=>{
+    const r=await fetch("/hotel-admin/billing/export-xlsx",{credentials:"same-origin"});
+    return r.status;
+  });
+  assert.equal(forbiddenXlsx,401);
+  const invalidRangeXlsx=await admin.evaluate(async()=>{
+    const r=await fetch("/hotel-admin/billing/export-xlsx?from=2026-10-01&to=2026-11-13",{credentials:"same-origin"});
+    return r.status;
+  });
+  assert.equal(invalidRangeXlsx,400);
   const badRange=await admin.evaluate(async()=>{
    const r=await fetch("/hotel-admin/billing/export?from=2026-10-01&to=2026-11-13",{credentials:"same-origin"});
    return r.status;
