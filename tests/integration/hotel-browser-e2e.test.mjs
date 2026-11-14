@@ -100,6 +100,63 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   }finally{await devicePage.close();}
  });
 
+ await t.test("Phone diagnostic interactions handle permission denial, offline status and clipboard",async()=>{
+  // Emulated-browser checks only: these do not certify real hardware or audible sound.
+  const deviceCtx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  const devicePage=await deviceCtx.newPage();
+  const unexpectedWrites=[];
+  devicePage.on("request",req=>{
+   if(req.method()!=="GET"&&new URL(req.url()).pathname.startsWith("/hotel-device-check"))
+    unexpectedWrites.push(req.url());
+  });
+  try{
+   const response=await devicePage.goto(BASE+"/hotel-device-check",{waitUntil:"domcontentloaded"});
+   assert.equal(response?.status(),200);
+   // React useEffect has run, so the diagnostic event handlers are hydrated.
+   await devicePage.getByText("Brauzer onlayn görünür",{exact:true}).waitFor({timeout:20000});
+   await devicePage.evaluate(()=>{
+    if(navigator.mediaDevices){
+     Object.defineProperty(navigator.mediaDevices,"getUserMedia",{
+      configurable:true,value:async()=>{throw new DOMException("QA permission denial","NotAllowedError");},
+     });
+    }
+    Object.defineProperty(navigator,"clipboard",{
+     configurable:true,value:{writeText:async(value)=>{window.__hotelQaClipboard=value;}},
+    });
+   });
+   await devicePage.getByRole("button",{name:"Kameranı yoxla"}).click();
+   await devicePage.waitForFunction(()=>{
+    const text=document.body.innerText;
+    return text.includes("Kamera nəticəsi:")&&!text.includes("Kamera nəticəsi: yoxlanmayıb");
+   },null,{timeout:10000});
+   const cameraText=await devicePage.locator("section").first().innerText();
+   assert.match(cameraText,/Kamera nəticəsi: (icazə verilmədi|dəstəklənmir)/);
+   await deviceCtx.setOffline(true);
+   await devicePage.evaluate(()=>window.dispatchEvent(new Event("offline")));
+   await devicePage.getByText("Brauzer oflayn görünür",{exact:true}).waitFor({timeout:10000});
+   await deviceCtx.setOffline(false);
+   await devicePage.evaluate(()=>window.dispatchEvent(new Event("online")));
+   await devicePage.getByText("Brauzer onlayn görünür",{exact:true}).waitFor({timeout:10000});
+   // Verify UI triggers without claiming sound was actually heard or a push reached a device.
+   await devicePage.getByRole("button",{name:"Test səsini çal"}).click();
+   await devicePage.waitForFunction(()=>
+    !document.body.innerText.includes("Səs əməliyyatı: yoxlanmayıb"),null,{timeout:10000});
+   await devicePage.getByRole("button",{name:"Bildirişi yoxla"}).click();
+   await devicePage.waitForFunction(()=>
+    !document.body.innerText.includes("Bildiriş nəticəsi: yoxlanmayıb"),null,{timeout:10000});
+   await devicePage.getByRole("button",{name:"Test nəticəsini kopyala"}).click();
+   await devicePage.getByText("Nəticə cihazın mübadilə yaddaşına kopyalandı.").waitFor({timeout:10000});
+   const copied=await devicePage.evaluate(()=>window.__hotelQaClipboard);
+   assert.match(copied,/Kamera: (icazə verilmədi|dəstəklənmir)/);
+   assert.match(copied,/Şəbəkə: Brauzer onlayn görünür/);
+   assert.match(copied,/Səsi real eşitdim: Təsdiqlənməyib/);
+   assert.equal(unexpectedWrites.length,0,"Phone diagnostics must not upload or create data");
+  }finally{
+   await deviceCtx.setOffline(false);
+   await deviceCtx.close();
+  }
+ });
+
  await t.test("Superadmin creates hotel via protected UI and manager can access its own rooms",async()=>{
   // CI-only SUPERADMIN_ACCESS_KEY must not be a real Vercel secret.
   assert.equal(process.env.ENABLE_SUPERADMIN_PANEL,"true");
