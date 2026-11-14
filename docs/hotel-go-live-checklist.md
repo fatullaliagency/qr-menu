@@ -3,12 +3,12 @@
 Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzinə keçirmir. `main` və restoran staging mühitləri dəyişdirilməməlidir.
 
 ## Ayrı canlı test mühiti — məcburi ön şərtlər
-- [ ] Restoran staging-dən və production-dan **ayrı PostgreSQL** otel test bazası yaradılıb, DB identifikatoru ayrıca təsdiq edilib.
-- [x] Ayrı `qr-menu-hotel-staging` Vercel layihəsi yaradılıb (preview source: `feature/hotel-module-v1`); otel, sifariş və superadmin funksiyaları ayrıca DB hazır olana qədər bağlıdır.
-- [ ] Layihəyə otel test bazasının ayrıca `DATABASE_URL` dəyəri təhlükəsiz şəkildə qoşulub; layihə canlı test üçün yenidən yerləşdirilib.
-- [ ] `ENABLE_HOTEL_MODULE=true` yalnız həmin izolyasiya olunmuş mühitdədir; restoran və production mühitində deaktivdir.
-- [ ] Migrasiya öncəsi backup yaradılıb və bərpası yoxlanılıb; `prisma migrate deploy` yalnız ayrıca DB-də icra olunub.
-- [ ] Session secret və superadmin açarları Vercel mühitində mövcuddur; dəyərləri heç bir logda paylaşılmır.
+- [x] Restoran staging və production-dan ayrı Vercel Prisma Postgres resursu `qr_menu_hotel_staging` yaradılıb; store ID və Preview-only project association yoxlanıb.
+- [x] `qr-menu-hotel-staging` yaradılıb; `feature/hotel-module-v1` Preview-də otel və superadmin açıqdır, Production-da isə bağlıdır.
+- [x] Yeni otel DB-nin `DATABASE_URL` dəyişəni yalnız Preview-yə həssas/sensitive olaraq bağlanıb; yerləşdirmə edilib.
+- [x] `ENABLE_HOTEL_MODULE=true`, `ENABLE_SUPERADMIN_PANEL=true` yalnız otel Preview-dədir; Production-da false; `ENABLE_WEB_ORDERS=false` hər iki mühitdədir.
+- [x] Yeni test DB-də `public` cədvəllərinin sayı 0 təsdiqlənib və izlənən Prisma migrasiyaları yalnız onun üzərində tətbiq edilib; ayrıca CI-də pg_dump/pg_restore sınağı keçib. Bazada ilkin məlumat olmadığından migrasiyaöncəsi məlumat backup-ı mövcud deyil.
+- [x] Ayrı `ADMIN_SESSION_SECRET` və `SUPERADMIN_ACCESS_KEY` Vercel Preview-də Sensitive rejimində var; dəyərlər hesabatda/logda yoxdur.
 
 ## Manual qəbul testi — telefon və real səslə
 - [ ] Android Chrome və iOS Safari: otaq QR-ni skan et; yalnız müvafiq otaq açılsın.
@@ -30,30 +30,30 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [ ] Onlayn kart ödənişi provayder təsdiqi və webhook mühafizəsi olmadan aktiv edilməyib.
 
 ## İstifadəyə buraxılış qərarı
-- [ ] Cari branch üçün otel CI, restoran regressiyası, PostgreSQL isolation, Chromium E2E, TS və Next build SUCCESS.
-- [ ] Canlı izolyasiya edilmiş sınaqdan loglar və nəticələr toplanıb.
+- [x] Otel/restaurant CI, PostgreSQL izolasiya, Chromium/WebKit E2E, TypeScript və Next.js build uğurlu yoxlamalardan keçib.
+- [x] İzolyasiya edilmiş Preview PostgreSQL ilə lokal production Next HTTP serverində 29 yoxlama PASS olub, QA otelləri silinib; `docs/hotel-acceptance-2026-11-14.md` sənədində qeyd olunub.
 - [ ] Otel meneceri və sifariş operatorları real cihaz qəbulunu təsdiqləyib.
 - [ ] Data migration və rollback planı yoxlanıb; ayrıca production release razılığı alınıb.
 
 **Cari vəziyyət:** ayrı canlı otel test bazası və real cihaz qəbul testi təsdiqlənmədiyi üçün production release etmək olmaz.
 
 ## Isolated staging enablement
-- [x] `qr-menu-hotel-staging` layihəsi yaradılıb və bütün modul flag-ləri qapalıdır.
+- [x] `qr-menu-hotel-staging` Preview aktiv, Production deaktiv saxlanılıb; superadmin Preview daxilində giriş tələb edir.
 - [x] Yeni, boş database üçün explicit approval / DB-name / table-emptiness preflight skripti hazırlanıb.
-- [ ] Tam müstəqil PostgreSQL yaradılıb və `npm run hotel:test-db:init` yalnız onun üzərində icra edilib.
-- [ ] Otel layihəsinə encrypted database URL və ayrıca auth açarları bağlanıb.
+- [x] Tam müstəqil PostgreSQL yaradılıb; yalnız boş DB-də Vercel-in müvəqqəti, yoxlamalı Preview build skripti vasitəsilə `prisma migrate deploy` tətbiq edilib.
+- [x] Otel layihəsinə Preview-only encrypted database URL və ayrıca auth açarları bağlanıb.
 
 ## Əlavə CI qəbul testləri
 - [x] Chromium ilə end-to-end qonaq QR, sifariş, RBAC, checkout, otaq hesabı və CSV yoxlaması.
-- [ ] WebKit (iOS Safari-yə yaxın mühərrik) ilə eyni ssenarilərin disposable PostgreSQL üzərində CI sınağı — yeni workflow nəticəsini gözləyir.
-- [ ] Otelin bütün əməliyyat cədvəllərindən pg_dump, yeni PostgreSQL-ə pg_restore və 10 cədvəl üzrə məlumat bütövlüyü — yeni workflow nəticəsini gözləyir.
+- [x] WebKit (iOS Safari-yə yaxın mühərrik) və Chromium ilə disposable PostgreSQL üzərində brauzer sınaqları CI-də keçib.
+- [x] Otel əməliyyat məlumatlarının pg_dump/pg_restore ilə ayrı disposable PostgreSQL üzərində bərpası CI-də keçib.
 - [ ] Bu testlər real iPhone/Android cihazları və real otel qəbul aktını əvəz etmir.
 
 ## Fiziki telefon sınağı (ayrıca modul söndürülmüşkən də mümkündür)
 - [x] Test səhifəsi kodu əlavə olunub: /hotel-device-check; yalnız HOTEL_DEVICE_CHECK_ENABLED=true olan layihədə açılır.
 - [ ] Otel staging linkini real iPhone Safari və Android Chrome-da açıb kamera/səs/bildiriş testlərini yerinə yetirin.
 - [ ] Test nəticəsi istifadəçinin razılığı ilə kopyalanıb, qəbul qərarı qeyd edilib; səhifə heç bir görüntünü və şəxsi məlumatı serverə göndərmir.
-- [ ] Real QR ilə sifariş və şöbə bildirişi üçün ayrıca otel PostgreSQL bağlantısı hələ tələb olunur.
+- [x] Ayrıca otel PostgreSQL bağlantısı və migrasiyaları hazırdır. Real cihazdan QR sifarişi və səsli bildiriş isə hələ manual yoxlama tələb edir.
 
 ## Otaq QR toplu çapı
 - [x] Otel meneceri üçün yalnız öz otelini göstərən `/hotel-admin/rooms/print` səhifəsi (hər səhifədə 24 QR).
@@ -71,4 +71,4 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [x] Transfer və SPA xidmətləri ayrıca kateqoriya, sifariş şöbəsi, əməkdaş PİN icazəsi və status bildirişi kimi əlavə edilib.
 - [x] Superadmin otel yaradarkən və otel meneceri işlək bölmələri seçərkən ayrıca transfer/SPA checkbox-ları göstərilir.
 - [x] RESTAURANT və sifariş migrationları dəyişdirilməyib; Prisma üçün əlavə otel enum/flag migrasiyası var.
-- [ ] Müstəqil otel PostgreSQL-də canlı SPA/transfer sifarişləri və fiziki cihaz bildirişləri təsdiqlənib.
+- [x] Müstəqil otel Preview PostgreSQL-də SPA/transfer sifarişlərinin şöbələrə ayrılması və tracking HTTP sınaqları yoxlanılıb. Fiziki telefon bildirişləri hələ təsdiqlənməyib.
