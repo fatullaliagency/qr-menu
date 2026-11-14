@@ -163,8 +163,14 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    // request must reject the old cookie after sign-out.
    await superPage.reload({waitUntil:"domcontentloaded"});
    await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
-   const sessionCookies=await superCtx.cookies(BASE+"/superadmin");
-   assert.equal(sessionCookies.some(cookie=>cookie.name==="qr_superadmin_session"&&cookie.value.length>0),false);
+   // The security invariant is server-side authorization, not the presence
+   // or absence of a stale client cookie entry (which varies by browser engine).
+   await superPage.goto(BASE+"/superadmin/hotels/new",{waitUntil:"domcontentloaded"});
+   await superPage.waitForLoadState("networkidle");
+   assert.equal(await superPage.locator('input[name="roomCount"]').count(),0,
+    "Logged-out browser must not reach hotel creation form");
+   assert.equal(await superPage.locator('input[name="pin"]').count(),0,
+    "Logged-out browser must not reach hotel admin PIN creation form");
   }finally{
    await superCtx.close();
    await managerCtx.close();
