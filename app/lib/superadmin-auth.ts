@@ -69,6 +69,8 @@ export async function clearSuperAdminSession(): Promise<void> {
     secure: hotelRuntimeSecureCookie(),
     sameSite: "strict",
     path: "/superadmin",
+    // Clear the same host-only path-scoped cookie with both expiry directives.
     maxAge: 0,
+    expires: new Date(0),
   });
 }
