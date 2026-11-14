@@ -159,8 +159,8 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    await superPage.goto(BASE+"/superadmin");
    await superPage.getByRole("button",{name:"Çıxış"}).click();
    await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
-   await superPage.goto(BASE+"/superadmin/hotels/new");
-   await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+   const sessionCookies=await superCtx.cookies(BASE+"/superadmin");
+   assert.equal(sessionCookies.some(cookie=>cookie.name==="qr_superadmin_session"&&cookie.value.length>0),false);
   }finally{
    await superCtx.close();
    await managerCtx.close();
