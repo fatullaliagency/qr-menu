@@ -15,3 +15,11 @@ test("department authorization is restrictive", () => {
   }
  }
 });
+
+test("SPA and transfer operators cannot access other departments",()=>{
+ assert.equal(canStaffAccessHotelDepartment("TRANSFER","TRANSFER"),true);
+ assert.equal(canStaffAccessHotelDepartment("SPA","SPA"),true);
+ assert.equal(canStaffAccessHotelDepartment("TRANSFER","SPA"),false);
+ assert.equal(canStaffAccessHotelDepartment("SPA","TRANSFER"),false);
+ assert.equal(canStaffAccessHotelDepartment("SPA","KITCHEN"),false);
+});

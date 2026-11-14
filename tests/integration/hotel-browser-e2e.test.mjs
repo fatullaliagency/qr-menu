@@ -444,4 +444,83 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   const html=await response.text();
   assert.doesNotMatch(html,/CI Hotel Soup|CI Hotel Towel/);
  });
+ await t.test("SPA and transfer guest order split, managers route, staff cannot cross departments",async()=>{
+  // The first stay has checked out, so re-occupy using the manager UI and use the NEW QR.
+  await admin.goto(BASE+"/hotel-admin");
+  const card=admin.locator("article").filter({has:admin.getByRole("heading",{name:"Otaq № 101"})});
+  await card.locator('select[name="status"]').selectOption("OCCUPIED");
+  await card.getByRole("button",{name:"Yadda saxla"}).click();
+  let current;
+  for(let i=0;i<50;i++){
+   current=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+   if(current.status==="OCCUPIED")break;
+   await new Promise(done=>setTimeout(done,200));
+  }
+  assert.equal(current?.status,"OCCUPIED");
+  const secondQr=hotelRoomToken(process.env.ADMIN_SESSION_SECRET,a.id,room.id,current.qrNonce);
+  await guest.goto(BASE+"/hotel/"+a.slug+"/room/101?t="+secondQr);
+  await guest.getByRole("heading",{name:"CI Airport Pickup"}).waitFor({timeout:20000});
+  await guest.getByRole("heading",{name:"CI Spa Massage"}).waitFor({timeout:20000});
+  await guest.waitForFunction(()=>document.querySelector('input[name="requestId"]')?.value?.length===36);
+  const inputs=guest.locator('input[type="number"]');
+  assert.equal(await inputs.count(),4);
+  await inputs.nth(2).fill("1"); // TRANSFER
+  await guest.waitForFunction(()=>{
+   try{const x=JSON.parse(document.querySelector('input[name="items"]')?.value||"[]");
+    return x.length===1&&x[0].quantity===1;}catch{return false;}
+  });
+  await inputs.nth(3).fill("1"); // SPA
+  await guest.waitForFunction(()=>{
+   try{const x=JSON.parse(document.querySelector('input[name="items"]')?.value||"[]");
+    return x.length===2&&x.every(i=>i.quantity===1);}catch{return false;}
+  });
+  await guest.getByRole("button",{name:"Otaq hesabına sifariş göndər"}).click();
+  await guest.waitForURL(/\/hotel\/.*\/track\//,{timeout:20000});
+  const secondRequestId=new URL(guest.url()).pathname.split("/").pop();
+  const secondRequest=await db.hotelGuestRequest.findUniqueOrThrow({
+   where:{clientRequestId:secondRequestId},
+   include:{orders:{include:{items:true}}},
+  });
+  assert.equal(secondRequest.hotelId,a.id);
+  assert.deepEqual(secondRequest.orders.map(o=>o.department).sort(),["SPA","TRANSFER"]);
+  assert.deepEqual(secondRequest.orders.map(o=>o.total.toFixed(2)).sort(),["18.00","40.00"]);
+  const chargeCount=await db.hotelRoomCharge.count({
+   where:{hotelId:a.id,orderId:{in:secondRequest.orders.map(o=>o.id)},status:"PENDING"}
+  });
+  assert.equal(chargeCount,2);
+  assert.equal(await db.hotelOrder.count({where:{hotelId:b.id,requestId:secondRequest.id}}),0);
+
+  await admin.goto(BASE+"/hotel-admin/panel/transfer");
+  await admin.getByText("CI Airport Pickup").waitFor({timeout:20000});
+  assert.doesNotMatch(await admin.locator("body").innerText(),/CI Spa Massage/);
+  await admin.goto(BASE+"/hotel-admin/panel/spa");
+  await admin.getByText("CI Spa Massage").waitFor({timeout:20000});
+  assert.doesNotMatch(await admin.locator("body").innerText(),/CI Airport Pickup/);
+
+  const transferPin="643218",username="ci-transfer-"+randomUUID().slice(0,7);
+  await db.hotelStaff.create({data:{
+   hotelId:a.id,username,name:"CI Transfer Operator",pinCode:await hash(transferPin),
+   department:"TRANSFER",
+  }});
+  const ctx=await browser.newContext({extraHTTPHeaders:{"x-vercel-forwarded-for":"127.0.0.1"}});
+  try{
+   const staffPage=await ctx.newPage();
+   await staffPage.goto(BASE+"/hotel-staff");
+   await staffPage.locator('input[name="slug"]').fill(a.slug);
+   await staffPage.locator('input[name="username"]').fill(username);
+   await staffPage.locator('input[name="pin"]').fill(transferPin);
+   await staffPage.getByRole("button",{name:"Daxil ol"}).click();
+   await staffPage.waitForURL(/\/hotel-admin\/panel\/transfer/,{timeout:20000});
+   await staffPage.getByText("CI Airport Pickup").waitFor({timeout:20000});
+   const statuses=await staffPage.evaluate(async()=>{
+    const transfer=await fetch("/hotel-admin/notifications?department=TRANSFER");
+    const spa=await fetch("/hotel-admin/notifications?department=SPA");
+    return [transfer.status,spa.status];
+   });
+   assert.deepEqual(statuses,[200,403]);
+   await staffPage.goto(BASE+"/hotel-admin/panel/spa");
+   assert.doesNotMatch(await staffPage.locator("body").innerText(),/CI Spa Massage/);
+  }finally{await ctx.close();}
+ });
+
 });
