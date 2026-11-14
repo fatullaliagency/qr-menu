@@ -27,6 +27,8 @@ test("cart is bounded, unique and department-specific",()=>{
  assert.equal(hotelCategoryDepartment("FOOD"),"KITCHEN");
  assert.equal(hotelCategoryDepartment("ROOM_SERVICE"),"HOUSEKEEPING");
  assert.equal(hotelCategoryDepartment("EXTRA"),"RECEPTION");
+ assert.equal(hotelCategoryDepartment("TRANSFER"),"TRANSFER");
+ assert.equal(hotelCategoryDepartment("SPA"),"SPA");
  assert.equal(hotelNextStatus("NEW"),"ACCEPTED");
  assert.equal(hotelNextStatus("DISPATCHED"),"COMPLETED");
  assert.equal(hotelNextStatus("COMPLETED"),null);

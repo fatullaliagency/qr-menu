@@ -31,6 +31,13 @@ t("Hotel rows and requests are isolated by hotelId on the disposable DB",async()
    hotelId:ha.id,category:"ROOM_SERVICE",department:"HOUSEKEEPING",name:"Test towel",price:"2.00",
   }});
   assert.equal(await prisma.hotelService.count({where:{hotelId:hb.id,id:service.id}}),0);
+  const transfer=await prisma.hotelService.create({data:{
+   hotelId:ha.id,category:"TRANSFER",department:"TRANSFER",name:"CI pickup",price:"20.00",
+  }});
+  const spa=await prisma.hotelService.create({data:{
+   hotelId:ha.id,category:"SPA",department:"SPA",name:"CI wellness",price:"35.00",
+  }});
+  assert.equal(await prisma.hotelService.count({where:{hotelId:hb.id,id:{in:[transfer.id,spa.id]}}}),0);
   const req=await prisma.hotelGuestRequest.create({data:{
    hotelId:ha.id,roomId:ra.id,trackingTokenHash:"a".repeat(64),clientRequestId:randomUUID(),
    orders:{create:{hotelId:ha.id,department:"HOUSEKEEPING",total:"2.00",

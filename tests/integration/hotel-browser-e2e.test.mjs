@@ -61,11 +61,15 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
  ]);
  hotelIds.push(a.id,b.id);
  const room=await db.hotelRoom.findFirstOrThrow({where:{hotelId:a.id,number:"101"}});
- const [food,towel]=await Promise.all([
+ const [food,towel,transfer,spa]=await Promise.all([
   db.hotelService.create({data:{hotelId:a.id,category:"FOOD",department:"KITCHEN",
    name:"CI Hotel Soup",price:"6.50"}}),
   db.hotelService.create({data:{hotelId:a.id,category:"ROOM_SERVICE",department:"HOUSEKEEPING",
    name:"CI Hotel Towel",price:"0.00"}}),
+  db.hotelService.create({data:{hotelId:a.id,category:"TRANSFER",department:"TRANSFER",
+   name:"CI Airport Pickup",price:"18.00"}}),
+  db.hotelService.create({data:{hotelId:a.id,category:"SPA",department:"SPA",
+   name:"CI Spa Massage",price:"40.00"}}),
  ]);
  const token=hotelRoomToken(process.env.ADMIN_SESSION_SECRET,a.id,room.id,room.qrNonce);
  const guestUrl=BASE+"/hotel/"+a.slug+"/room/101?t="+token;
@@ -144,6 +148,8 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   await guest.goto(guestUrl,{waitUntil:"domcontentloaded"});
   await guest.getByRole("heading",{name:"CI Hotel Soup"}).waitFor({timeout:20000});
   await guest.getByRole("heading",{name:"CI Hotel Towel"}).waitFor({timeout:20000});
+  await guest.getByRole("heading",{name:"CI Airport Pickup"}).waitFor({timeout:20000});
+  await guest.getByRole("heading",{name:"CI Spa Massage"}).waitFor({timeout:20000});
   // A streamed server heading can precede React hydration on slower/mobile
   // engines. Wait for the client-generated UUID before changing controlled inputs.
   await guest.waitForFunction(()=>{
@@ -151,7 +157,7 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    return typeof id==="string"&&id.length===36;
   },null,{timeout:20000});
   const controls=guest.locator('input[type="number"]');
-  assert.equal(await controls.count(),2);
+  assert.equal(await controls.count(),4);
   await controls.nth(0).fill("2");
   await guest.waitForFunction(()=>{
     const raw=document.querySelector('input[name="items"]')?.value||"[]";
@@ -228,6 +234,10 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    await panel.locator('input[name="pin"]').fill(pinB);
    await panel.getByRole("button",{name:"Daxil ol"}).click();
    await panel.getByRole("heading",{name:b.name}).waitFor({timeout:20000});
+   await panel.goto(BASE+"/hotel-admin/panel/spa");
+   await panel.getByText("Hələ müraciət yoxdur.").waitFor({timeout:20000});
+   await panel.goto(BASE+"/hotel-admin/panel/transfer");
+   await panel.getByText("Hələ müraciət yoxdur.").waitFor({timeout:20000});
    await panel.goto(BASE+"/hotel-admin/rooms/print");
    await panel.locator('[data-print-room="101"] img').waitFor({state:"visible",timeout:30000});
    assert.match(await panel.locator("body").innerText(),/CI Hotel Beta/);

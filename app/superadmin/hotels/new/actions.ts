@@ -16,19 +16,21 @@ export async function createSuperAdminHotel(data:FormData):Promise<void>{
  const foodEnabled=data.get("foodEnabled")==="on";
  const roomServiceEnabled=data.get("roomServiceEnabled")==="on";
  const extraEnabled=data.get("extraEnabled")==="on";
+ const transferEnabled=data.get("transferEnabled")==="on";
+ const spaEnabled=data.get("spaEnabled")==="on";
  if(name.length<2||name.length>120||branchName.length>120||
     phone.length<6||phone.length>30||!/^[+0-9() -]+$/.test(phone)||
     email.length>200||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||
     address.length>300||!/^[0-9]{6,12}$/.test(pin)||
     !Number.isInteger(roomCount)||roomCount<1||roomCount>500||
-    (!foodEnabled&&!roomServiceEnabled&&!extraEnabled)){
+    (!foodEnabled&&!roomServiceEnabled&&!extraEnabled&&!transferEnabled&&!spaEnabled)){
   redirect("/superadmin/hotels/new?error=validation");
  }
  const pinHash=await hashRestaurantPin(pin);
  const slug=await createWithHotelSlug(name,async slug=>{
    await db.hotel.create({data:{
     name,slug,branchName:branchName||null,phone,email:email||null,address:address||null,
-    roomCount,pinCode:pinHash,foodEnabled,roomServiceEnabled,extraEnabled,
+    roomCount,pinCode:pinHash,foodEnabled,roomServiceEnabled,extraEnabled,transferEnabled,spaEnabled,
     rooms:{create:Array.from({length:roomCount},(_,i)=>({number:String(i+1)}))},
    }});
  });

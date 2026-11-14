@@ -1,7 +1,7 @@
 import {Suspense} from "react";
 import Link from "next/link";
 import {getHotelSession,getHotelSecret} from "@/app/lib/hotel-auth";
-import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels} from "@/app/lib/hotel-validation";
+import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels,HOTEL_CATEGORIES,HOTEL_DEPARTMENTS} from "@/app/lib/hotel-validation";
 import {hotelRoomToken} from "@/app/lib/hotel-security";
 import {canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
 import {db} from "@/app/lib/db";
@@ -52,7 +52,7 @@ async function Panel({searchParams}:Props){
     <form action={logoutHotel}><button className="rounded-lg bg-zinc-900 px-4 py-2 text-white">Çıxış</button></form>
    </header>
    <nav className="grid gap-3 sm:grid-cols-3">
-    {(["KITCHEN","HOUSEKEEPING","RECEPTION"] as const).map(d=><Link key={d}
+    {HOTEL_DEPARTMENTS.map(d=><Link key={d}
       href={"/hotel-admin/panel/"+d.toLowerCase()}
       className="rounded-xl bg-emerald-950 p-5 font-bold text-white">
       {hotelDepartmentLabels[d]}<span className="mt-2 block text-sm font-normal">Aktiv müraciətlər: {deptCounts[d]??0}</span>
@@ -67,7 +67,7 @@ async function Panel({searchParams}:Props){
       <label className="text-sm font-medium">Əməkdaş adı<input name="name" required minLength={2} maxLength={120} className={input}/></label>
       <label className="text-sm font-medium">İstifadəçi adı<input name="username" required minLength={3} maxLength={40} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,39}" className={input}/></label>
       <label className="text-sm font-medium">Şöbə<select name="department" className={input}>
-       {(["KITCHEN","HOUSEKEEPING","RECEPTION"] as const).map(d=><option key={d} value={d}>{hotelDepartmentLabels[d]}</option>)}
+       {HOTEL_DEPARTMENTS.map(d=><option key={d} value={d}>{hotelDepartmentLabels[d]}</option>)}
       </select></label>
       <label className="text-sm font-medium">İlkin PİN<input name="pin" type="password" inputMode="numeric" required minLength={6} maxLength={12} pattern="[0-9]{6,12}" autoComplete="new-password" className={input}/></label>
       <button className="rounded-lg bg-emerald-800 px-4 py-3 font-bold text-white sm:col-span-2">Əməkdaş yarat</button>
@@ -94,6 +94,8 @@ async function Panel({searchParams}:Props){
      <label><input name="foodEnabled" type="checkbox" defaultChecked={hotel.foodEnabled}/> Yemək-içki</label>
      <label><input name="roomServiceEnabled" type="checkbox" defaultChecked={hotel.roomServiceEnabled}/> Otaq xidməti</label>
      <label><input name="extraEnabled" type="checkbox" defaultChecked={hotel.extraEnabled}/> Əlavə xidmətlər</label>
+     <label><input name="transferEnabled" type="checkbox" defaultChecked={hotel.transferEnabled}/> Transfer</label>
+     <label><input name="spaEnabled" type="checkbox" defaultChecked={hotel.spaEnabled}/> SPA</label>
      <button className="rounded-lg bg-zinc-900 px-4 py-2 text-white">Yadda saxla</button>
     </form>
    </section>
@@ -135,7 +137,7 @@ async function Panel({searchParams}:Props){
     <form action={addHotelService} className="grid gap-3 sm:grid-cols-2">
      <label className="text-sm font-medium">Xidmət adı<input name="name" required minLength={2} maxLength={120} placeholder="Dəsmal gətirilməsi" className={input}/></label>
      <label className="text-sm font-medium">Bölmə<select name="category" className={input}>
-      {(["FOOD","ROOM_SERVICE","EXTRA"] as const).map(cat=><option key={cat} value={cat}>{hotelCategoryLabels[cat]}</option>)}
+      {HOTEL_CATEGORIES.map(cat=><option key={cat} value={cat}>{hotelCategoryLabels[cat]}</option>)}
      </select></label>
      <label className="text-sm font-medium">Qiymət (AZN)<input name="price" type="number" min={0} max={999999} step="0.01" defaultValue="0" required className={input}/></label>
      <label className="text-sm font-medium">İzah<input name="description" maxLength={500} className={input}/></label>

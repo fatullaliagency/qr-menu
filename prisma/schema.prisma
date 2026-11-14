@@ -230,11 +230,15 @@ enum HotelServiceCategory {
   FOOD
   ROOM_SERVICE
   EXTRA
+  TRANSFER
+  SPA
 }
 enum HotelDepartment {
   KITCHEN
   HOUSEKEEPING
   RECEPTION
+  TRANSFER
+  SPA
 }
 enum HotelRequestStatus {
   NEW
@@ -256,6 +260,8 @@ model Hotel {
   foodEnabled Boolean @default(true)
   roomServiceEnabled Boolean @default(true)
   extraEnabled Boolean @default(true)
+  transferEnabled Boolean @default(true)
+  spaEnabled Boolean @default(true)
   pinCode    String
   createdAt  DateTime @default(now()) @db.Timestamp(3)
 

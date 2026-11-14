@@ -1,6 +1,6 @@
-export const HOTEL_CATEGORIES = ["FOOD", "ROOM_SERVICE", "EXTRA"] as const;
+export const HOTEL_CATEGORIES = ["FOOD", "ROOM_SERVICE", "EXTRA", "TRANSFER", "SPA"] as const;
 export type HotelCategory = (typeof HOTEL_CATEGORIES)[number];
-export const HOTEL_DEPARTMENTS = ["KITCHEN", "HOUSEKEEPING", "RECEPTION"] as const;
+export const HOTEL_DEPARTMENTS = ["KITCHEN", "HOUSEKEEPING", "RECEPTION", "TRANSFER", "SPA"] as const;
 export type HotelDepartmentName = (typeof HOTEL_DEPARTMENTS)[number];
 export const HOTEL_STATUSES = ["NEW", "ACCEPTED", "PREPARING", "DISPATCHED", "COMPLETED"] as const;
 export type HotelStatusName = (typeof HOTEL_STATUSES)[number];
@@ -24,6 +24,8 @@ export function hotelCategoryDepartment(category: HotelCategory): HotelDepartmen
     case "FOOD": return "KITCHEN";
     case "ROOM_SERVICE": return "HOUSEKEEPING";
     case "EXTRA": return "RECEPTION";
+    case "TRANSFER": return "TRANSFER";
+    case "SPA": return "SPA";
   }
 }
 export function hotelNextStatus(current: HotelStatusName): HotelStatusName | null {
@@ -40,10 +42,12 @@ export const hotelStatusLabels: Record<HotelStatusName, string> = {
   DISPATCHED:"Göndərildi", COMPLETED:"Tamamlandı"
 };
 export const hotelDepartmentLabels: Record<HotelDepartmentName,string> = {
-  KITCHEN:"Mətbəx / restoran", HOUSEKEEPING:"Otaq xidməti", RECEPTION:"Resepsiyon"
+  KITCHEN:"Mətbəx / restoran", HOUSEKEEPING:"Otaq xidməti", RECEPTION:"Resepsiyon",
+  TRANSFER:"Transfer xidməti", SPA:"SPA xidməti"
 };
 export const hotelCategoryLabels: Record<HotelCategory,string> = {
-  FOOD:"Yemək və içki", ROOM_SERVICE:"Otaq xidməti", EXTRA:"Əlavə xidmətlər"
+  FOOD:"Yemək və içki", ROOM_SERVICE:"Otaq xidməti", EXTRA:"Əlavə xidmətlər",
+  TRANSFER:"Transfer", SPA:"SPA"
 };
 export function parseHotelCart(raw: unknown): HotelCartLine[] | null {
   if (typeof raw !== "string" || raw.length > 10000) return null;

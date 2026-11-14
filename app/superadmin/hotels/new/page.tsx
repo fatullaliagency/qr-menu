@@ -40,7 +40,9 @@ async function Content({searchParams}:Props){
       <legend className="font-semibold">Xidmət bölmələri</legend>
       <label className="block"><input type="checkbox" name="foodEnabled" defaultChecked/> Yemək-içki / restoran</label>
       <label className="block"><input type="checkbox" name="roomServiceEnabled" defaultChecked/> Dəsmal, təmizlik, gigiyena</label>
-      <label className="block"><input type="checkbox" name="extraEnabled" defaultChecked/> Transfer, SPA, əlavə xidmətlər</label>
+      <label className="block"><input type="checkbox" name="extraEnabled" defaultChecked/> Resepsiyon və digər xidmətlər</label>
+      <label className="block"><input type="checkbox" name="transferEnabled" defaultChecked/> Transfer xidməti (ayrıca şöbə)</label>
+      <label className="block"><input type="checkbox" name="spaEnabled" defaultChecked/> SPA xidməti (ayrıca şöbə)</label>
     </fieldset>
     <p className="text-xs text-zinc-500">İlkin ödəniş yalnız otelin təsdiqinə göndərilən otaq hesabı qeydidir. Avtomatik bank ödənişi edilmir.</p>
     <button className="w-full rounded-xl bg-emerald-800 p-3 font-bold text-white">Otel yarat</button>

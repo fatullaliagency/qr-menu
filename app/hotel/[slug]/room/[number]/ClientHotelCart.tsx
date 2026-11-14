@@ -2,9 +2,9 @@
 import {useEffect,useMemo,useState} from "react";
 import {useFormStatus} from "react-dom";
 import {createHotelGuestRequest} from "./actions";
-import {hotelCategoryLabels} from "@/app/lib/hotel-validation";
-type Service={id:string;name:string;description:string|null;category:"FOOD"|"ROOM_SERVICE"|"EXTRA";price:string};
-const categories=["FOOD","ROOM_SERVICE","EXTRA"] as const;
+import {hotelCategoryLabels,HOTEL_CATEGORIES,type HotelCategory} from "@/app/lib/hotel-validation";
+type Service={id:string;name:string;description:string|null;category:HotelCategory;price:string};
+const categories=HOTEL_CATEGORIES;
 function OrderButton({enabled}:{enabled:boolean}){
  const {pending}=useFormStatus();
  return <button type="submit" disabled={pending||!enabled}

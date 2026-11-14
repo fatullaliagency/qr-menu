@@ -159,8 +159,10 @@ export async function setHotelDepartments(form:FormData):Promise<void>{
  const food=form.get("foodEnabled")==="on";
  const room=form.get("roomServiceEnabled")==="on";
  const extra=form.get("extraEnabled")==="on";
- if(!food&&!room&&!extra)throw new Error("Ən azı bir xidmət bölməsi seçilməlidir.");
- await db.hotel.update({where:{id:hotelId},data:{foodEnabled:food,roomServiceEnabled:room,extraEnabled:extra}});
+ const transfer=form.get("transferEnabled")==="on";
+ const spa=form.get("spaEnabled")==="on";
+ if(!food&&!room&&!extra&&!transfer&&!spa)throw new Error("Ən azı bir xidmət bölməsi seçilməlidir.");
+ await db.hotel.update({where:{id:hotelId},data:{foodEnabled:food,roomServiceEnabled:room,extraEnabled:extra,transferEnabled:transfer,spaEnabled:spa}});
  revalidatePath("/hotel-admin");
 }
 

@@ -66,3 +66,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [x] Tarixçə yalnız menecerin öz otelində görünür: `/hotel-admin/rooms/history` (40 qeyd/səhifə), bearer QR tokeni saxlanmır.
 - [x] CI-də status keçidləri, otellərarası izolasiya və PostgreSQL backup/restore üzrə audit cədvəli avtomatik yoxlanılır.
 - [ ] Real otel meneceri status keçidlərini və audit görünüşünü qəbul edib.
+
+## Transfer və SPA ayrıca şöbələr
+- [x] Transfer və SPA xidmətləri ayrıca kateqoriya, sifariş şöbəsi, əməkdaş PİN icazəsi və status bildirişi kimi əlavə edilib.
+- [x] Superadmin otel yaradarkən və otel meneceri işlək bölmələri seçərkən ayrıca transfer/SPA checkbox-ları göstərilir.
+- [x] RESTAURANT və sifariş migrationları dəyişdirilməyib; Prisma üçün əlavə otel enum/flag migrasiyası var.
+- [ ] Müstəqil otel PostgreSQL-də canlı SPA/transfer sifarişləri və fiziki cihaz bildirişləri təsdiqlənib.

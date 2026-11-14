@@ -1,6 +1,6 @@
 "use server";
 import {redirect} from "next/navigation";
-import {Prisma} from "@prisma/client";
+import {Prisma, type HotelDepartment} from "@prisma/client";
 import {db} from "@/app/lib/db";
 import {getHotelSecret} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled,parseHotelCart,validHotelRoomNumber,hotelCategoryDepartment} from "@/app/lib/hotel-validation";
@@ -20,7 +20,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  if(!/^[a-z0-9-]{3,60}$/.test(slug)||!validHotelRoomNumber(roomNumber)||
    !isHotelRequestUUIDv4(requestId)||
    note.length>500||!lines)throw new Error("Sifariş məlumatları düzgün deyil.");
- const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true}});
+ const hotel=await db.hotel.findUnique({where:{slug},select:{id:true,foodEnabled:true,roomServiceEnabled:true,extraEnabled:true,transferEnabled:true,spaEnabled:true}});
  if(!hotel)throw new Error("Otel tapılmadı.");
  const room=await db.hotelRoom.findFirst({
   where:{hotelId:hotel.id,number:roomNumber},
@@ -53,7 +53,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  let grandCents=0;
  for(const line of lines){
   const s=lookup.get(line.serviceId);
-  if(!s||!({FOOD:hotel.foodEnabled,ROOM_SERVICE:hotel.roomServiceEnabled,EXTRA:hotel.extraEnabled}[s.category])||s.department!==hotelCategoryDepartment(s.category))throw new Error("Xidmətin şöbəsi yanlışdır.");
+  if(!s||!({FOOD:hotel.foodEnabled,ROOM_SERVICE:hotel.roomServiceEnabled,EXTRA:hotel.extraEnabled,TRANSFER:hotel.transferEnabled,SPA:hotel.spaEnabled}[s.category])||s.department!==hotelCategoryDepartment(s.category))throw new Error("Xidmətin şöbəsi yanlışdır.");
   const cents=Math.round(Number(s.price)*100);
   const amount=cents*line.quantity;
   if(!Number.isSafeInteger(cents)||cents<0||cents>MAX_CENTS||
@@ -80,7 +80,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
   clientRequestId:requestId,hotelId:hotel.id,roomId:room.id,
   trackingTokenHash:hashHotelTrackingToken(trackingToken),
   orders:{create:[...grouped.entries()].map(([department,items])=>({
-   hotelId:hotel.id,department:department as "KITCHEN"|"HOUSEKEEPING"|"RECEPTION",
+   hotelId:hotel.id,department:department as HotelDepartment,
    note:note||null,total:items.reduce((sum,x)=>sum.add(x.lineTotal),new Prisma.Decimal(0)),
    roomCharge:true,
    items:{create:items},
