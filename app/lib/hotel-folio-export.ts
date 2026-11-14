@@ -65,7 +65,7 @@ export function hotelFolioBakuDate(value: string): string {
 
 /** Quote every CSV cell and defend against formula injection in spreadsheet apps. */
 export function hotelFolioCsvCell(value: string): string {
- const safe = /^[\\s\\u0000-\\u001f]*[=+@-]/.test(value) ? "'" + value : value;
+ const safe = /^[\s\u0000-\u001f]*[=+@-]/.test(value) ? "'" + value : value;
  return '"' + safe.replaceAll('"','""') + '"';
 }
 export function hotelFolioCsv(rows: HotelFolioCsvRow[]): string {
