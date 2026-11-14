@@ -26,16 +26,18 @@ const scrypt=promisify(scryptCallback);
 const secret=process.env.ADMIN_SESSION_SECRET;
 const ref=randomUUID().slice(0,12);
 const pinHash=async()=>{const pin=Array.from({length:12},()=>String(randomInt(10))).join("");const salt=randomBytes(16);const key=await scrypt(pin,salt,64);return "scrypt$v1$"+salt.toString("hex")+"$"+key.toString("hex");};
-let checks=0;
-const check=(name,yes)=>{assert.ok(yes,name);checks++;};
+let checks=0,stage="starting";
+const check=(name,yes)=>{if(!yes)console.error("HOTEL_LIVE_ASSERTION_FAILED: "+name);assert.ok(yes,name);checks++;};
 const fetchHtml=async url=>{
  const r=await fetch(url,{redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(25000)});
  return {status:r.status,body:await r.text()};
 };
 try{
+ stage="database metadata";
  const meta=await db.$queryRawUnsafe("SELECT current_database() AS db, (SELECT COUNT(*)::integer FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE') AS tables");
  check("database identity",meta[0]?.db==="postgres"||meta[0]?.db==="qr_menu_hotel_staging");
  check("schema migrated",meta[0]?.tables>=8);
+ stage="hotel fixture creation";
  const a=await db.hotel.create({data:{name:"QA Otel Alfa "+ref,slug:"qa-alfa-"+ref,phone:"+994500000001",pinCode:await pinHash(),roomCount:1,rooms:{create:{number:"101",status:"OCCUPIED"}}}});ids.push(a.id);
  const b=await db.hotel.create({data:{name:"QA Otel Beta "+ref,slug:"qa-beta-"+ref,phone:"+994500000002",pinCode:await pinHash(),roomCount:1,rooms:{create:{number:"101",status:"OCCUPIED"}}}});ids.push(b.id);
  const [ra,rb]=await Promise.all([db.hotelRoom.findFirstOrThrow({where:{hotelId:a.id,number:"101"}}),db.hotelRoom.findFirstOrThrow({where:{hotelId:b.id,number:"101"}})]);
@@ -47,10 +49,12 @@ try{
   ["TRANSFER","TRANSFER","QA Transfer",18],
   ["SPA","SPA","QA SPA",40]
  ];
+ stage="service fixture creation";
  const services=await Promise.all(categories.map(([category,department,name,price])=>db.hotelService.create({
   data:{hotelId:a.id,category,department,name:name+" "+ref,price}
  })));
  const token=hotelRoomToken(secret,a.id,ra.id,ra.qrNonce);
+ stage="hosted QR / tenant isolation";
  const alpha=await fetchHtml(allowedDomain+"/hotel/"+a.slug+"/room/101?t="+token);
  check("live Alpha room visible",alpha.status===200&&alpha.body.includes(a.name));
  for(const s of services)check("live menu includes "+s.category,alpha.body.includes(s.name));
@@ -61,6 +65,7 @@ try{
 
  const requestId=randomUUID(),tracking=hotelTrackingTokenFromRequest(secret,requestId);
  const stayKey=hotelRoomStayKey(a.id,ra.id,ra.qrNonce);
+ stage="five department order and folio fixture";
  const req=await db.hotelGuestRequest.create({data:{
   hotelId:a.id,roomId:ra.id,clientRequestId:requestId,trackingTokenHash:hashHotelTrackingToken(tracking),
   orders:{create:services.map(s=>({
@@ -77,6 +82,7 @@ try{
  check("other hotel cannot read order",await db.hotelOrder.count({where:{hotelId:b.id,requestId:req.id}})===0);
  check("other hotel cannot change order",(await db.hotelOrder.updateMany({where:{hotelId:b.id,id:orders[0].id},data:{status:"ACCEPTED"}})).count===0);
  check("unpaid folio blocks checkout",!canReleaseHotelRoomWithCharges("OCCUPIED","VACANT",5));
+ stage="hosted tracking";
  const trackUrl=allowedDomain+"/hotel/"+a.slug+"/track/"+requestId+"/status";
  const good=await fetch(trackUrl+"?t="+tracking,{cache:"no-store",signal:AbortSignal.timeout(25000)});
  const data=await good.json();
@@ -91,6 +97,7 @@ try{
  const after=await changed.json();
  check("hosted tracking displays status change",changed.status===200&&after.orders.some(o=>o.id===first.id&&o.status==="ACCEPTED"));
  check("request remains idempotent",await db.hotelGuestRequest.count({where:{clientRequestId:requestId}})===1);
+ stage="folio approval checkout and QR rotation";
  for(const order of orders)await db.hotelRoomCharge.update({
   where:{orderId:order.id},data:{status:"APPROVED",approvedBy:"HOTEL_MANAGER",approvedAt:new Date(),
    events:{create:{hotelId:a.id,fromStatus:"PENDING",toStatus:"APPROVED",actor:"HOTEL_MANAGER"}}}
@@ -110,7 +117,7 @@ try{
  check("other hotel not checked out",(await db.hotelRoom.findUniqueOrThrow({where:{id:rb.id}})).status==="OCCUPIED");
  console.log("HOTEL_LIVE_ACCEPTANCE_PASS: "+checks+" assertions; isolated database and hosted QR/tracking.");
 }catch{
- console.error("HOTEL_LIVE_ACCEPTANCE_FAILED: preview DB or hosted endpoint check failed; removing fixtures.");
+ console.error("HOTEL_LIVE_ACCEPTANCE_FAILED_AT: "+stage+"; temporary fixtures will be removed.");
  process.exitCode=1;
 }finally{
  try{
