@@ -267,6 +267,7 @@ model Hotel {
   staff    HotelStaff[]
   charges HotelRoomCharge[]
   chargeEvents HotelRoomChargeEvent[]
+  roomStatusEvents HotelRoomStatusEvent[]
 }
 
 model HotelRoom {
@@ -280,9 +281,27 @@ model HotelRoom {
 
   requests HotelGuestRequest[]
   charges  HotelRoomCharge[]
+  statusEvents HotelRoomStatusEvent[]
 
   @@unique([hotelId, number])
   @@index([hotelId, status])
+}
+
+/** Immutable manager audit trail for room occupancy transitions (does not contain bearer QR token). */
+model HotelRoomStatusEvent {
+  id         String          @id @default(cuid())
+  hotelId    String
+  hotel      Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomId     String
+  room       HotelRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  fromStatus HotelRoomStatus?
+  toStatus   HotelRoomStatus
+  qrRotated  Boolean         @default(false)
+  actor      String          @db.VarChar(40)
+  createdAt  DateTime        @default(now()) @db.Timestamp(3)
+
+  @@index([hotelId, createdAt])
+  @@index([hotelId, roomId, createdAt])
 }
 
 model HotelService {

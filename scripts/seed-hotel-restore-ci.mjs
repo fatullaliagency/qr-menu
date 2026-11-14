@@ -16,6 +16,10 @@ try{
  const room=await db.hotelRoom.create({data:{
   hotelId:hotel.id,number:"101",status:"OCCUPIED",
  }});
+ await db.hotelRoomStatusEvent.create({data:{
+  hotelId:hotel.id,roomId:room.id,fromStatus:"VACANT",toStatus:"OCCUPIED",
+  qrRotated:false,actor:"HOTEL_MANAGER",
+ }});
  const service=await db.hotelService.create({data:{
   hotelId:hotel.id,name:"CI meal",category:"FOOD",department:"KITCHEN",
   price:new Prisma.Decimal("13.00"),

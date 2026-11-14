@@ -413,6 +413,22 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   }
   assert.equal(latest?.status,"VACANT");
   assert.notEqual(latest.qrNonce,room.qrNonce);
+  const audit=await db.hotelRoomStatusEvent.findMany({
+   where:{hotelId:a.id,roomId:room.id},orderBy:[{createdAt:"asc"},{id:"asc"}],
+  });
+  assert.equal(audit.length,3);
+  assert.deepEqual(audit.map(e=>[e.fromStatus,e.toStatus,e.qrRotated]),[
+   ["OCCUPIED","OUT_OF_SERVICE",true],
+   ["OUT_OF_SERVICE","OCCUPIED",false],
+   ["OCCUPIED","VACANT",true],
+  ]);
+  assert.equal(await db.hotelRoomStatusEvent.count({where:{hotelId:b.id}}),0);
+  await admin.goto(BASE+"/hotel-admin/rooms/history");
+  await admin.getByRole("heading",{name:/Otaq status tarixçəsi/}).waitFor({timeout:20000});
+  assert.equal(await admin.locator("[data-room-status-event]").count(),3);
+  assert.doesNotMatch(await admin.locator("body").innerText(),/CI Hotel Beta/);
+  await guest.goto(BASE+"/hotel-admin/rooms/history");
+  assert.equal(await guest.locator("[data-room-status-event]").count(),0);
   const response=await fetch(guestUrl);
   assert.ok(response.status===200||response.status===404);
   const html=await response.text();

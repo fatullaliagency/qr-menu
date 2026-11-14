@@ -15,7 +15,7 @@ test("hotel folio, staff, QR, audit trail survive a full, independent PG restore
   ["Hotel","id"],["HotelRoom","id"],["HotelService","id"],
   ["HotelStaff","id"],["HotelGuestRequest","id"],["HotelOrder","id"],
   ["HotelOrderItem","id"],["HotelOrderEvent","id"],
-  ["HotelRoomCharge","id"],["HotelRoomChargeEvent","id"],
+  ["HotelRoomCharge","id"],["HotelRoomChargeEvent","id"],["HotelRoomStatusEvent","id"],
  ];
  const snapshot=async(db,name,primary)=>{
   // Static code-only whitelist above prevents arbitrary SQL identifier injection.
@@ -31,12 +31,16 @@ test("hotel folio, staff, QR, audit trail survive a full, independent PG restore
  const room=await restored.hotelRoom.findFirstOrThrow({include:{
   hotel:{select:{name:true}},
   charges:{include:{order:{include:{items:true,events:true}},events:true}},
+  statusEvents:true,
  }});
  assert.equal(room.hotel.name,"CI hotel backup specimen");
  assert.equal(room.charges.length,1);
  assert.equal(room.charges[0].status,"APPROVED");
  assert.equal(room.charges[0].order.items[0].quantity,1);
  assert.equal(room.charges[0].events.length,2);
+ assert.equal(room.statusEvents.length,1);
+ assert.equal(room.statusEvents[0].toStatus,"OCCUPIED");
+ assert.equal(room.statusEvents[0].actor,"HOTEL_MANAGER");
  const slug="ci-restored-only-"+randomUUID();
  await restored.hotel.create({data:{
   name:"CI independent restore probe",slug,phone:"+994501234567",pinCode:"not-used",

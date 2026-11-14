@@ -100,7 +100,10 @@ async function Panel({searchParams}:Props){
    <section className="space-y-4 rounded-xl bg-white p-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
      <h2 className="text-xl font-bold">Otaqlar və QR kodları</h2>
-     <Link href="/hotel-admin/rooms/print" className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white">Otaq QR-lərini toplu çap et</Link>
+     <div className="flex flex-wrap items-center gap-2">
+      <Link href="/hotel-admin/rooms/history" className="rounded-lg border border-emerald-800 px-4 py-2.5 text-sm font-semibold text-emerald-950">Otaq status tarixçəsi</Link>
+      <Link href="/hotel-admin/rooms/print" className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white">Otaq QR-lərini toplu çap et</Link>
+     </div>
     </div>
     <p className="text-sm text-amber-900">Otaq yalnız “Dolu” olduqda qonaq sifariş verə bilər. “Boş” statusuna keçid əvvəlki QR tokenini ləğv edir: yeni QR-ni çap edin. Otağın istənilən qalma dövrünə aid gözləyən hesab qeydi həll edilmədən otağı boşaltmaq mümkün deyil.</p>
     <form action={addHotelRoom} className="flex flex-wrap items-end gap-2">

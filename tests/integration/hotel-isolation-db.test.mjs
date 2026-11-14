@@ -21,6 +21,12 @@ t("Hotel rows and requests are isolated by hotelId on the disposable DB",async()
   ]);
   assert.notEqual(ra.id,rb.id);
   assert.equal(await prisma.hotelRoom.count({where:{hotelId:hb.id,id:ra.id}}),0);
+  await prisma.hotelRoomStatusEvent.create({data:{
+   hotelId:ha.id,roomId:ra.id,fromStatus:"VACANT",toStatus:"OCCUPIED",
+   qrRotated:false,actor:"HOTEL_MANAGER",
+  }});
+  assert.equal(await prisma.hotelRoomStatusEvent.count({where:{hotelId:ha.id}}),1);
+  assert.equal(await prisma.hotelRoomStatusEvent.count({where:{hotelId:hb.id}}),0);
   const service=await prisma.hotelService.create({data:{
    hotelId:ha.id,category:"ROOM_SERVICE",department:"HOUSEKEEPING",name:"Test towel",price:"2.00",
   }});

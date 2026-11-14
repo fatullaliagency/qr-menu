@@ -87,15 +87,21 @@ export async function setHotelRoomStatus(form:FormData):Promise<void>{
    if(!canReleaseHotelRoomWithCharges(current.status,next,pending))
     throw new Error("Otaq boşaldılmazdan əvvəl bütün gözləyən otaq hesablarını təsdiqləyin və ya ləğv edin.");
   }
+  const qrRotated=shouldRotateHotelRoomToken(current.status,next);
   const changed=await tx.hotelRoom.updateMany({
    where:{id:roomId,hotelId,status:current.status},
    data:{status:next,
-    ...(shouldRotateHotelRoomToken(current.status,next)?{qrNonce:randomUUID()}:{}),
+    ...(qrRotated?{qrNonce:randomUUID()}:{}),
    },
   });
   if(changed.count!==1)throw new Error("Otağın statusu başqa yerdə dəyişdirilib.");
+  // Record the transition atomically. No raw bearer QR or guest details in audit history.
+  await tx.hotelRoomStatusEvent.create({data:{
+   hotelId,roomId,fromStatus:current.status,toStatus:next,qrRotated,actor:"HOTEL_MANAGER",
+  }});
  });
  revalidatePath("/hotel-admin");
+ revalidatePath("/hotel-admin/rooms/history");
 }
 export async function addHotelService(form:FormData):Promise<void>{
  const hotelId=await managerHotelId();

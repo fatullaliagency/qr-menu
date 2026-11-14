@@ -60,3 +60,9 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [x] QR-lər üçüncü tərəfə ötürülmədən yalnız brauzerdə yaradılır; çap vərəqi paylaşılmamalıdır.
 - [ ] Çapdan sonra otaq nömrələrinin fiziki otaqlara düzgün bağlandığı real cihazda yoxlanılıb.
 - [ ] Otaq boşaldıqda QR yenilənir; köhnə çap vərəqlərinin ləğvi qəbulla təsdiqlənib.
+
+## Otaq statusu audit tarixçəsi
+- [x] Otağın menecer tərəfindən status dəyişməsi atomik audit hadisəsi olaraq saxlanır: əvvəlki/yeni status, vaxt, QR yenilənməsi, icraçı.
+- [x] Tarixçə yalnız menecerin öz otelində görünür: `/hotel-admin/rooms/history` (40 qeyd/səhifə), bearer QR tokeni saxlanmır.
+- [x] CI-də status keçidləri, otellərarası izolasiya və PostgreSQL backup/restore üzrə audit cədvəli avtomatik yoxlanılır.
+- [ ] Real otel meneceri status keçidlərini və audit görünüşünü qəbul edib.
