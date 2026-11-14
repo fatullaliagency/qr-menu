@@ -1,3 +1,4 @@
+import {spawnSync} from "node:child_process";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {inflateRawSync} from "node:zlib";
@@ -71,4 +72,29 @@ test("XLSX escapes XML and protects spreadsheet from formula injection",()=>{
 test("XLSX rejects over-limit and invalid monetary values",()=>{
  assert.throws(()=>hotelFolioXlsx("Test",Array(5001).fill(data[0]),"2026-11-14","2026-11-14"));
  assert.throws(()=>hotelFolioXlsx("Test",[{...data[0],amount:"NaN"}],"2026-11-14","2026-11-14"));
+});
+
+test("generated Excel file passes independent ZIP and XML parsers and OOXML sheet element order",()=>{
+ const workbook=hotelFolioXlsx("Dragon Hotel",data,"2026-11-14","2026-11-15");
+ // Python standard library is available on GitHub Actions Ubuntu runners.
+ // This intentionally does not reuse the custom JS ZIP reader under test.
+ const validator = [
+  "import io,sys,zipfile,xml.etree.ElementTree as ET",
+  "archive=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()))",
+  "assert archive.testzip() is None, 'ZIP member CRC failed'",
+  "names=archive.namelist()",
+  "assert 'xl/worksheets/sheet1.xml' in names",
+  "assert 'xl/worksheets/sheet2.xml' in names",
+  "for name in names:",
+  "    if name.endswith('.xml') or name.endswith('.rels'):",
+  "        ET.fromstring(archive.read(name))",
+  "for name in ('xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml'):",
+  "    root=ET.fromstring(archive.read(name))",
+  "    tags=[node.tag.split('}')[-1] for node in root]",
+  "    assert tags.index('sheetData') < tags.index('autoFilter') < tags.index('mergeCells'), (name,tags)",
+  "    assert tags.index('sheetViews') < tags.index('sheetFormatPr') < tags.index('cols') < tags.index('sheetData'), (name,tags)",
+ ].join("\n");
+ const result=spawnSync("python3",["-c",validator],{input:workbook,timeout:10000});
+ assert.equal(result.error,undefined,String(result.error));
+ assert.equal(result.status,0,result.stderr?.toString()??"Parser failed");
 });
