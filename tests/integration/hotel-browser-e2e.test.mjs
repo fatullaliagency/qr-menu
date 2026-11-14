@@ -168,7 +168,7 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    await superPage.getByRole("button",{name:"Çıxış"}).click();
    const logoutResponse=await logoutResponsePromise;
    assert.equal(logoutResponse.status(),303,"Logout POST must issue a 303 See Other");
-   assert.equal(logoutResponse.headers()["set-cookie"]?.includes("qr_superadmin_session="),true,
+   assert.equal((await logoutResponse.headerValue("set-cookie"))?.includes("qr_superadmin_session="),true,
     "Logout must include session-cookie deletion response header");
    await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
    // A client-side optimistic transition is not sufficient: a fresh server
