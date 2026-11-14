@@ -447,8 +447,10 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   assert.match(report.type??"",/text\/csv/);
   assert.match(report.cache??"",/no-store/);
   assert.match(report.csv,/CI Hotel Alpha/);
-  assert.match(report.csv,/APPROVED/);
-  assert.match(report.csv,/13\.00/);
+  assert.ok(report.csv.startsWith("\uFEFFsep=;\r\n"));
+  assert.match(report.csv,/"Otelin adı";"Otaq №"/);
+  assert.match(report.csv,/Daxili təsdiq/);
+  assert.match(report.csv,/13,00/);
   assert.doesNotMatch(report.csv,/CI Hotel Beta/);
   const badRange=await admin.evaluate(async()=>{
    const r=await fetch("/hotel-admin/billing/export?from=2026-10-01&to=2026-11-13",{credentials:"same-origin"});
