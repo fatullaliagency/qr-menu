@@ -157,6 +157,12 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    assert.doesNotMatch(await managerPage.locator("body").innerText(),/CI Hotel Alpha|CI Hotel Beta/);
 
    await superPage.goto(BASE+"/superadmin");
+   const crossSiteLogout=await superCtx.request.post(BASE+"/superadmin/logout",{
+    headers:{"origin":"https://untrusted.example"},maxRedirects:0,
+   });
+   assert.equal(crossSiteLogout.status(),403);
+   await superPage.reload();
+   await superPage.getByRole("button",{name:"Çıxış"}).waitFor({timeout:20000});
    await superPage.getByRole("button",{name:"Çıxış"}).click();
    await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
    // A client-side optimistic transition is not sufficient: a fresh server

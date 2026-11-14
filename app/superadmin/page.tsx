@@ -8,7 +8,7 @@ import {
   hasSuperAdminSession,
   isSuperAdminEnabled,
 } from "@/app/lib/superadmin-auth";
-import { loginSuperAdmin, logoutSuperAdmin } from "./actions";
+import { loginSuperAdmin } from "./actions";
 
 export const metadata = {
   title: "Super Admin | QR Menü",
@@ -194,7 +194,7 @@ async function SuperAdminContent({ searchParams }: Props) {
             >
               + Yeni müəssisə
             </Link>
-            <form action={logoutSuperAdmin}>
+            <form action="/superadmin/logout" method="post">
               <button
                 type="submit"
                 className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"

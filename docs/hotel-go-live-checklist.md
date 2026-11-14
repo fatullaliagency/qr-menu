@@ -76,3 +76,7 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 ## Superadmin yaradılışı — əlavə avtomatlaşdırılmış qəbul
 - [x] Yeni CI testi: disposable PostgreSQL üzərində superadmin PİN-dən fərqli CI-only 32+ simvolluq giriş açarı ilə UI login, iki otaqlı otelin yaradılması, yeni otel menecerinin ayrıca PIN girişi, öz otaq QR-ləri, tenant izolasiya və superadmin logout yoxlanır.
 - [ ] Real Preview-də istifadəçi özü təyin etdiyi gizli `SUPERADMIN_ACCESS_KEY` ilə login və iki otel yaradılmasını təsdiq etməlidir; CI-only açar burada istifadə olunmur.
+
+## Superadmin logout təhlükəsizliyi
+- [x] Superadmin çıxışı yalnız same-origin POST ilə `/superadmin/logout` marşrutundan 303 yönləndirmə edir; çıxış kukisi birbaşa `NextResponse.cookies.set` vasitəsilə path-matched `Max-Age=0` və `Expires` ilə silinir.
+- [x] CI e2e-də cross-origin logout sorğusunun 403 olması, çıxışdan sonra serverin protected `/superadmin/hotels/new` səhifəsində yeni otel formasını göstərməməsi yoxlanır.
