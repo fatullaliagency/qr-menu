@@ -44,12 +44,12 @@ async function BillingContent() {
     <Link href="/hotel-admin" className="text-sm text-blue-700 underline">← Otel admin</Link>
     <h1 className="mt-2 text-2xl font-bold">{hotel.name} · Otaq hesabları</h1>
     <p className="mt-2 text-sm text-amber-900">Bu daxili qeydiyyatdır: bank ödənişi, pulun alınması və PMS sisteminə göndəriş həyata keçirilmir.</p>
-    <form action="/hotel-admin/billing/export" method="get" className="mt-4 flex flex-wrap items-end gap-3">
+    <form action="/hotel-admin/billing/export-xlsx" method="get" className="mt-4 flex flex-wrap items-end gap-3">
      <label className="text-sm">Tarixdən (UTC)<input type="date" name="from" className="mt-1 block rounded border p-2"/></label>
      <label className="text-sm">Tarixədək (UTC)<input type="date" name="to" className="mt-1 block rounded border p-2"/></label>
-     <button className="rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white">Excel üçün oxunaqlı CSV hesabatı yüklə</button>
+     <button className="rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white">Excel hesabatını (.xlsx) yüklə</button>
     </form>
-    <p className="mt-2 text-xs text-zinc-600">Standart: son 30 gün. Maksimum 31 günlük dövr və 5000 qeyd. Başlıqlar Azərbaycan dilində, tarixlər Bakı vaxtı ilədir. CSV faylı Excel-də ayrı sütunlarda açılmalıdır; bu, XLSX formatı deyil və PMS-ə avtomatik ötürülmür.</p>
+    <p className="mt-2 text-xs text-zinc-600">Əsl Excel (.xlsx) faylı yüklənir: Azərbaycan dilində sütunlar, rəngli statuslar, hesab yekunları və ayrıca texniki məlumat vərəqi. Standart son 30 gün, maksimum 31 gün və 5000 qeyd. Bu daxili hesabatdır; PMS-ə avtomatik ötürülmür.</p>
    </header>
    <div className="grid gap-3 sm:grid-cols-3">
     <p className="rounded-xl bg-white p-5">Gözləyən: <strong>{amount("PENDING")} ₼</strong></p>
