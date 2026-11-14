@@ -4,7 +4,6 @@ import {getHotelSession} from "@/app/lib/hotel-auth";
 import {hotelModuleEnabled} from "@/app/lib/hotel-validation";
 import {parseHotelFolioDateRange} from "@/app/lib/hotel-folio-export";
 import {hotelFolioXlsx} from "@/app/lib/hotel-folio-xlsx";
-export const runtime="nodejs";
 const HEADERS={
  "Cache-Control":"private, no-store, max-age=0, must-revalidate",
  "X-Content-Type-Options":"nosniff",
