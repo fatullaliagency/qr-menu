@@ -163,14 +163,16 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    assert.equal(crossSiteLogout.status(),403);
    await superPage.reload();
    await superPage.getByRole("button",{name:"Çıxış"}).waitFor({timeout:20000});
-   const logoutResponsePromise=superPage.waitForResponse(response=>
-    new URL(response.url()).pathname==="/superadmin/logout",{timeout:20000});
    await superPage.getByRole("button",{name:"Çıxış"}).click();
-   const logoutResponse=await logoutResponsePromise;
-   assert.equal(logoutResponse.status(),303,"Logout POST must issue a 303 See Other");
-   assert.equal((await logoutResponse.headerValue("set-cookie"))?.includes("qr_superadmin_session="),true,
-    "Logout must include session-cookie deletion response header");
    await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+   // WebKit does not consistently expose navigation POST responses via page events.
+   // Verify the HTTP redirect and cookie deletion separately, in the same context.
+   const logoutResponse=await superCtx.request.post(BASE+"/superadmin/logout",{
+    headers:{origin:BASE},maxRedirects:0,
+   });
+   assert.equal(logoutResponse.status(),303,"Logout POST must issue a 303 See Other");
+   assert.equal(logoutResponse.headers()["set-cookie"]?.includes("qr_superadmin_session="),true,
+    "Logout must include session-cookie deletion response header");
    // A client-side optimistic transition is not sufficient: a fresh server
    // request must reject the old cookie after sign-out.
    await superPage.reload({waitUntil:"domcontentloaded"});
