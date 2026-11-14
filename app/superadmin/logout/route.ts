@@ -7,8 +7,12 @@ export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
   const requestOrigin = req.nextUrl.origin;
   const site = req.headers.get("sec-fetch-site");
-  if (!origin || origin !== requestOrigin ||
-      (site !== null && site !== "same-origin" && site !== "none")) {
+  // Browsers can omit Origin on navigation POSTs (and proxies can rewrite
+  // the internal origin). Sec-Fetch-Site is a browser-controlled forbidden
+  // request header and is authoritative when present.
+  const sameOriginBrowser = site === "same-origin" || site === "none";
+  const sameOriginLegacy = site === null && origin === requestOrigin;
+  if (!sameOriginBrowser && !sameOriginLegacy) {
     return new NextResponse("Forbidden", {
       status: 403,
       headers: { "Cache-Control": "no-store" },
