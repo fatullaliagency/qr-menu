@@ -29,3 +29,8 @@ DB migrasiyası və izolasiya yoxlaması təsdiqləndikdən sonra yalnız bu **o
 - Canlı PMS/bank bağlantısı provider API sənədləri və icazələri olmadan həyata keçirilmir. CSV yalnız daxili üzləşdirmə üçündür.
 
 **Status:** yeni Vercel layihəsi hazırlanıb, lakin ayrıca PostgreSQL mənbəyi/provayder bağlantısı bu sessiyada mövcud olmadığı üçün real DB quraşdırılması və canlı qəbul işləri qəsdən gözləyir.
+
+## Vercel Prisma Postgres (2026-11-14)
+- Ayrıca `qr_menu_hotel_staging` Vercel Prisma Postgres resursu `store_XTQmpyxQp7ApQuzp` yalnız `qr-menu-hotel-staging` Preview mühitinə qoşulub. Əsl daxili PostgreSQL adı `postgres` ola bilər; UI resurs adı ilə qarışdırmayın.
+- `scripts/hotel-staging-database-maintenance.mjs` yalnız preview build, düzgün Vercel project/branch, deaktiv runtime və boş user-table yoxlaması ilə `inspect` və `initialize` əməliyyatlarını icra edir. Gizli URL və şifrələr loglara çıxarılmır.
+- İcra üçün **müvəqqəti** Vercel build override istifadə olunur; iş bitən kimi buildCommand `null` vəziyyətinə qaytarılmalıdır. `initialize` bir dəfə icra olunmalıdır. Yeni migrasiyalar üçün ayrıca təsdiq və backup tələb olunur.
