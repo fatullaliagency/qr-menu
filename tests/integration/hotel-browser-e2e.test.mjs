@@ -100,6 +100,73 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
   }finally{await devicePage.close();}
  });
 
+ await t.test("Superadmin creates hotel via protected UI and manager can access its own rooms",async()=>{
+  // CI-only SUPERADMIN_ACCESS_KEY must not be a real Vercel secret.
+  assert.equal(process.env.ENABLE_SUPERADMIN_PANEL,"true");
+  assert.equal(process.env.SUPERADMIN_ACCESS_KEY?.startsWith("ci-only-test-superadmin"),true);
+  const superCtx=await browser.newContext();
+  const managerCtx=await browser.newContext({extraHTTPHeaders:{"x-vercel-forwarded-for":"127.0.0.1"}});
+  try{
+   const superPage=await superCtx.newPage();
+   await superPage.goto(BASE+"/superadmin");
+   await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+   const protectedPage=await managerCtx.newPage();
+   await protectedPage.goto(BASE+"/superadmin/hotels/new");
+   await protectedPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+   await superPage.locator('input[name="accessKey"]').fill(process.env.SUPERADMIN_ACCESS_KEY);
+   await superPage.getByRole("button",{name:"Super Admin kimi daxil ol"}).click();
+   await superPage.getByRole("link",{name:"+ Yeni müəssisə"}).waitFor({timeout:25000});
+   await superPage.getByRole("link",{name:"+ Yeni müəssisə"}).click();
+   await superPage.getByRole("heading",{name:"Yeni müəssisə yaradın"}).waitFor({timeout:20000});
+   await superPage.getByRole("link",{name:"Otel əlavə et"}).click();
+   await superPage.getByRole("heading",{name:"Yeni otel yarat"}).waitFor({timeout:20000});
+   const hotelName="CI Super Hotel "+randomUUID().slice(0,8);
+   const managerPin="845123";
+   await superPage.locator('input[name="name"]').fill(hotelName);
+   await superPage.locator('input[name="branchName"]').fill("CI Reception Branch");
+   await superPage.locator('input[name="roomCount"]').fill("2");
+   await superPage.locator('input[name="phone"]').fill("+994501112233");
+   await superPage.locator('input[name="pin"]').fill(managerPin);
+   await superPage.getByRole("button",{name:"Otel yarat"}).click();
+   await superPage.waitForURL(/\/superadmin\/hotels\/new\?created=/,{timeout:30000});
+   const createdSlug=new URL(superPage.url()).searchParams.get("created");
+   assert.match(createdSlug??"",/^[a-z0-9-]{3,60}$/);
+   const created=await db.hotel.findUniqueOrThrow({where:{slug:createdSlug},
+    include:{rooms:true}});
+   hotelIds.push(created.id);
+   assert.equal(created.name,hotelName);
+   assert.equal(created.roomCount,2);
+   assert.deepEqual(created.rooms.map(r=>r.number).sort(),["1","2"]);
+   assert.equal(created.spaEnabled,true);
+   assert.equal(created.transferEnabled,true);
+   assert.notEqual(created.id,a.id);
+   assert.notEqual(created.id,b.id);
+
+   const managerPage=await managerCtx.newPage();
+   await managerPage.goto(BASE+"/hotel-admin");
+   await managerPage.locator('input[name="slug"]').fill(created.slug);
+   await managerPage.locator('input[name="pin"]').fill(managerPin);
+   await managerPage.getByRole("button",{name:"Daxil ol"}).click();
+   await managerPage.getByRole("heading",{name:hotelName}).waitFor({timeout:25000});
+   const html=await managerPage.locator("body").innerText();
+   assert.doesNotMatch(html,/CI Hotel Alpha|CI Hotel Beta/);
+   await managerPage.getByRole("link",{name:"Otaq QR-lərini toplu çap et"}).click();
+   await managerPage.getByRole("heading",{name:"Otaq QR kodlarını çap et"}).waitFor({timeout:20000});
+   await managerPage.locator("[data-print-room]").first().waitFor({timeout:25000});
+   assert.equal(await managerPage.locator("[data-print-room]").count(),2);
+   assert.doesNotMatch(await managerPage.locator("body").innerText(),/CI Hotel Alpha|CI Hotel Beta/);
+
+   await superPage.goto(BASE+"/superadmin");
+   await superPage.getByRole("button",{name:"Çıxış"}).click();
+   await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+   await superPage.goto(BASE+"/superadmin/hotels/new");
+   await superPage.getByRole("heading",{name:"QR Menü — Super Admin"}).waitFor({timeout:20000});
+  }finally{
+   await superCtx.close();
+   await managerCtx.close();
+  }
+ });
+
  await t.test("Hotel manager PIN grants only own hotel dashboard",async()=>{
   await admin.goto(BASE+"/hotel-admin");
   await admin.locator('input[name="slug"]').fill(a.slug);

@@ -50,7 +50,7 @@ async function SuperAdminContent({ searchParams }: Props) {
             QR Menü — Super Admin
           </h1>
           <p className="mb-5 text-sm text-zinc-300">
-            Bütün restoranlara giriş üçün ayrıca idarəetmə açarı tələb olunur.
+            Restoran və otellərin idarəetməsi üçün ayrıca giriş açarı tələb olunur.
           </p>
           <form action={loginSuperAdmin} className="space-y-4">
             <label className="block text-sm">

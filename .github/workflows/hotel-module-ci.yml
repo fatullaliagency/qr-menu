@@ -28,6 +28,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/qr_hotel_ci
       ENABLE_HOTEL_MODULE: "true"
+      ENABLE_SUPERADMIN_PANEL: "true"
+      # Disposable local CI password; never reuse in staging or production.
+      SUPERADMIN_ACCESS_KEY: "ci-only-test-superadmin-access-key-do-not-use-outside-disposable-ci-2026"
       ENABLE_WEB_ORDERS: "true"
       ADMIN_SESSION_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       QR_MENU_EPHEMERAL_DB_TEST: "true"

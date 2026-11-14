@@ -72,3 +72,7 @@ Bu sənəd texniki test nəticələrini **real otel mühitində qəbul** əvəzi
 - [x] Superadmin otel yaradarkən və otel meneceri işlək bölmələri seçərkən ayrıca transfer/SPA checkbox-ları göstərilir.
 - [x] RESTAURANT və sifariş migrationları dəyişdirilməyib; Prisma üçün əlavə otel enum/flag migrasiyası var.
 - [x] Müstəqil otel Preview PostgreSQL-də SPA/transfer sifarişlərinin şöbələrə ayrılması və tracking HTTP sınaqları yoxlanılıb. Fiziki telefon bildirişləri hələ təsdiqlənməyib.
+
+## Superadmin yaradılışı — əlavə avtomatlaşdırılmış qəbul
+- [x] Yeni CI testi: disposable PostgreSQL üzərində superadmin PİN-dən fərqli CI-only 32+ simvolluq giriş açarı ilə UI login, iki otaqlı otelin yaradılması, yeni otel menecerinin ayrıca PIN girişi, öz otaq QR-ləri, tenant izolasiya və superadmin logout yoxlanır.
+- [ ] Real Preview-də istifadəçi özü təyin etdiyi gizli `SUPERADMIN_ACCESS_KEY` ilə login və iki otel yaradılmasını təsdiq etməlidir; CI-only açar burada istifadə olunmur.
