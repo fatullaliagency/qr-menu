@@ -27,17 +27,59 @@ export type HotelFolioCsvRow = {
   amount: string; createdAt: string; approvedAt: string;
 };
 
-/** RFC4180 quoting and defense against spreadsheet formula injection. */
+/** Excel-friendly output for the Azerbaijan/Russian locale (semicolon fields,
+ * decimal comma, UTF-8 BOM). The sep directive lets Excel open columns correctly
+ * when the user's Windows list separator differs from the CSV delimiter.
+ * This is a CSV file, not a native XLSX workbook.
+ */
+const DEPARTMENT_LABELS: Record<string, string> = {
+ KITCHEN:"Mətbəx / restoran",
+ HOUSEKEEPING:"Otaq xidməti / təmizlik",
+ RECEPTION:"Resepsiyon",
+ TRANSFER:"Transfer",
+ SPA:"SPA",
+};
+const ORDER_STATUS_LABELS: Record<string, string> = {
+ NEW:"Yeni",
+ ACCEPTED:"Qəbul edildi",
+ PREPARING:"Hazırlanır",
+ DISPATCHED:"Göndərildi",
+ COMPLETED:"Tamamlandı",
+};
+const CHARGE_STATUS_LABELS: Record<string, string> = {
+ PENDING:"Gözləyir",
+ APPROVED:"Daxili təsdiq",
+ VOID:"Ləğv edildi",
+};
+const bakuFormatter = new Intl.DateTimeFormat("en-GB", {
+ timeZone:"Asia/Baku",year:"numeric",month:"2-digit",day:"2-digit",
+ hour:"2-digit",minute:"2-digit",hour12:false,
+});
+export function hotelFolioBakuDate(value: string): string {
+ if(!value)return "";
+ const date = new Date(value);
+ if(Number.isNaN(date.getTime()))return value;
+ const parts = Object.fromEntries(bakuFormatter.formatToParts(date).map(p=>[p.type,p.value]));
+ return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
+}
+
+/** Quote every CSV cell and defend against formula injection in spreadsheet apps. */
 export function hotelFolioCsvCell(value: string): string {
- const safe = /^[\s\u0000-\u001f]*[=+@-]/.test(value) ? "'" + value : value;
+ const safe = /^[\\s\\u0000-\\u001f]*[=+@-]/.test(value) ? "'" + value : value;
  return '"' + safe.replaceAll('"','""') + '"';
 }
 export function hotelFolioCsv(rows: HotelFolioCsvRow[]): string {
- const header = ["Hotel","Room","Stay ID","Order ID","Department","Order status",
-   "Room charge status","Amount AZN","Created UTC","Approved UTC"];
- const lines = [header, ...rows.map(r=>[
-  r.hotel,r.room,r.stay,r.orderId,r.department,r.orderStatus,r.chargeStatus,
-  r.amount,r.createdAt,r.approvedAt
+ const header = ["Otelin adı","Otaq №","Şöbə","Sifarişin vəziyyəti",
+  "Otaq hesabının vəziyyəti","Məbləğ (AZN)","Yaradılma tarixi (Bakı)",
+  "Təsdiq tarixi (Bakı)","Sifariş ID","Qalma dövrü kodu"];
+ const lines = [header,...rows.map(r=>[
+  r.hotel,r.room,DEPARTMENT_LABELS[r.department]??r.department,
+  ORDER_STATUS_LABELS[r.orderStatus]??r.orderStatus,
+  CHARGE_STATUS_LABELS[r.chargeStatus]??r.chargeStatus,
+  r.amount.replace(".",","),
+  hotelFolioBakuDate(r.createdAt),hotelFolioBakuDate(r.approvedAt),
+  r.orderId,r.stay,
  ])];
- return "\uFEFF" + lines.map(r=>r.map(hotelFolioCsvCell).join(",")).join("\r\n") + "\r\n";
+ return "\uFEFFsep=;\r\n" +
+  lines.map(row=>row.map(hotelFolioCsvCell).join(";")).join("\r\n") + "\r\n";
 }
