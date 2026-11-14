@@ -47,9 +47,9 @@ async function BillingContent() {
     <form action="/hotel-admin/billing/export" method="get" className="mt-4 flex flex-wrap items-end gap-3">
      <label className="text-sm">Tarixdən (UTC)<input type="date" name="from" className="mt-1 block rounded border p-2"/></label>
      <label className="text-sm">Tarixədək (UTC)<input type="date" name="to" className="mt-1 block rounded border p-2"/></label>
-     <button className="rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white">Otaq hesablarını CSV/Excel üçün ixrac et</button>
+     <button className="rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white">Excel üçün oxunaqlı CSV hesabatı yüklə</button>
     </form>
-    <p className="mt-2 text-xs text-zinc-600">Standart: son 30 gün. Maksimum 31 günlük dövr və 5000 qeyd. Bu fayl PMS-ə avtomatik ötürülmür.</p>
+    <p className="mt-2 text-xs text-zinc-600">Standart: son 30 gün. Maksimum 31 günlük dövr və 5000 qeyd. Başlıqlar Azərbaycan dilində, tarixlər Bakı vaxtı ilədir. CSV faylı Excel-də ayrı sütunlarda açılmalıdır; bu, XLSX formatı deyil və PMS-ə avtomatik ötürülmür.</p>
    </header>
    <div className="grid gap-3 sm:grid-cols-3">
     <p className="rounded-xl bg-white p-5">Gözləyən: <strong>{amount("PENDING")} ₼</strong></p>
