@@ -14,7 +14,7 @@ export default function HotelTrackPage(props:{
  return <Suspense fallback={<main className="p-8">Sifariş yüklənir...</main>}><TrackContent {...props}/></Suspense>;
 }
 async function TrackContent({params,searchParams}:{
- params:Promise<{slug:string;id:string}>;searchParams:Promise<{t?:string|string[]}>
+ params:Promise<{slug:string;id:string}>;searchParams:Promise<{t?:string|string[];lang?:string|string[]}>
 }){
  if(!hotelModuleEnabled())notFound();
  await connection();
