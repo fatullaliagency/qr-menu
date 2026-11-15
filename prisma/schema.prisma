@@ -315,7 +315,11 @@ model HotelService {
   hotelId     String
   hotel       Hotel                @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   name        String               @db.VarChar(120)
+  nameEn      String?              @db.VarChar(120)
+  nameRu      String?              @db.VarChar(120)
   description String?              @db.VarChar(500)
+  descriptionEn String?            @db.VarChar(500)
+  descriptionRu String?            @db.VarChar(500)
   category    HotelServiceCategory
   department  HotelDepartment
   price       Decimal              @default(0) @db.Decimal(10, 2)
