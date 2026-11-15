@@ -5,7 +5,7 @@ import {hotelModuleEnabled,hotelCategoryLabels,hotelDepartmentLabels,HOTEL_CATEG
 import {hotelRoomToken} from "@/app/lib/hotel-security";
 import {canReleaseHotelRoomWithCharges} from "@/app/lib/hotel-stay";
 import {db} from "@/app/lib/db";
-import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,toggleHotelService,setHotelDepartments,createHotelStaff,setHotelStaffActive,resetHotelStaffPin} from "./actions";
+import {loginHotel,logoutHotel,addHotelRoom,setHotelRoomStatus,addHotelService,updateHotelServiceTranslations,toggleHotelService,setHotelDepartments,createHotelStaff,setHotelStaffActive,resetHotelStaffPin} from "./actions";
 import RoomQRCode from "./RoomQRCode";
 export const metadata={title:"Otel admin paneli",robots:{index:false,follow:false}};
 type Props={searchParams:Promise<{error?:string|string[]}>};
@@ -141,16 +141,36 @@ async function Panel({searchParams}:Props){
      </select></label>
      <label className="text-sm font-medium">Qiymət (AZN)<input name="price" type="number" min={0} max={999999} step="0.01" defaultValue="0" required className={input}/></label>
      <label className="text-sm font-medium">İzah<input name="description" maxLength={500} className={input}/></label>
+     <label className="text-sm font-medium">İngilis dilində ad (EN)<input name="nameEn" maxLength={120} placeholder="Breakfast" className={input}/></label>
+     <label className="text-sm font-medium">Rus dilində ad (RU)<input name="nameRu" maxLength={120} placeholder="Завтрак" className={input}/></label>
+     <label className="text-sm font-medium">İngilis dilində izah (EN)<input name="descriptionEn" maxLength={500} className={input}/></label>
+     <label className="text-sm font-medium">Rus dilində izah (RU)<input name="descriptionRu" maxLength={500} className={input}/></label>
+     <p className="text-xs text-zinc-600 sm:col-span-2">Xidmətləri xarici qonaqlara düzgün təqdim etmək üçün tərcümələri daxil edin. Boş qalan dil üçün orijinal ad göstəriləcək. Qiymət və hesablaşma AZN ilə saxlanılır.</p>
      <button className="rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white sm:col-span-2">Xidmət yarat</button>
     </form>
     <div className="space-y-2">
-     {hotel.services.map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-3">
-      <div><p className="font-semibold">{s.name} · {s.price.toString()} ₼</p>
-        <p className="text-xs text-zinc-500">{hotelCategoryLabels[s.category]} · {s.active?"Aktiv":"Deaktiv"}</p></div>
-      <form action={toggleHotelService}>
-       <input type="hidden" name="id" value={s.id}/><input type="hidden" name="active" value={String(!s.active)}/>
-       <button className="rounded-lg border border-zinc-300 px-3 py-2 text-sm">{s.active?"Deaktiv et":"Aktiv et"}</button>
-      </form>
+     {hotel.services.map(s=><div key={s.id} className="space-y-3 border-t py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <div><p className="font-semibold">{s.name} · {s.price.toString()} ₼</p>
+         <p className="text-xs text-zinc-500">{hotelCategoryLabels[s.category]} · {s.active?"Aktiv":"Deaktiv"}</p>
+         <p className="text-xs text-zinc-500">EN: {s.nameEn||"Tərcümə əlavə edilməyib"} · RU: {s.nameRu||"Tərcümə əlavə edilməyib"}</p>
+       </div>
+       <form action={toggleHotelService}>
+        <input type="hidden" name="id" value={s.id}/><input type="hidden" name="active" value={String(!s.active)}/>
+        <button className="rounded-lg border border-zinc-300 px-3 py-2 text-sm">{s.active?"Deaktiv et":"Aktiv et"}</button>
+       </form>
+      </div>
+      <details className="rounded-lg bg-zinc-50 p-3">
+       <summary className="cursor-pointer text-sm font-semibold text-emerald-900">İngilis və rus dilində tərcüməni düzəlt</summary>
+       <form action={updateHotelServiceTranslations} className="mt-3 grid gap-3 sm:grid-cols-2">
+        <input type="hidden" name="serviceId" value={s.id}/>
+        <label className="text-sm">İngilis adı<input name="nameEn" maxLength={120} defaultValue={s.nameEn??""} className={input}/></label>
+        <label className="text-sm">Rus adı<input name="nameRu" maxLength={120} defaultValue={s.nameRu??""} className={input}/></label>
+        <label className="text-sm">İngilis izahı<input name="descriptionEn" maxLength={500} defaultValue={s.descriptionEn??""} className={input}/></label>
+        <label className="text-sm">Rus izahı<input name="descriptionRu" maxLength={500} defaultValue={s.descriptionRu??""} className={input}/></label>
+        <button className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Tərcümələri yadda saxla</button>
+       </form>
+      </details>
      </div>)}
     </div>
    </section>
