@@ -103,6 +103,16 @@ export async function setHotelRoomStatus(form:FormData):Promise<void>{
  revalidatePath("/hotel-admin");
  revalidatePath("/hotel-admin/rooms/history");
 }
+function hotelServiceTranslations(form:FormData) {
+ const nameEn=String(form.get("nameEn")??"").trim();
+ const nameRu=String(form.get("nameRu")??"").trim();
+ const descriptionEn=String(form.get("descriptionEn")??"").trim();
+ const descriptionRu=String(form.get("descriptionRu")??"").trim();
+ if(nameEn.length>120||nameRu.length>120||descriptionEn.length>500||descriptionRu.length>500)
+  throw new Error("Tərcümə sahəsi çox uzundur.");
+ return {nameEn:nameEn||null,nameRu:nameRu||null,
+   descriptionEn:descriptionEn||null,descriptionRu:descriptionRu||null};
+}
 export async function addHotelService(form:FormData):Promise<void>{
  const hotelId=await managerHotelId();
  const name=String(form.get("name")??"").trim();
@@ -111,11 +121,21 @@ export async function addHotelService(form:FormData):Promise<void>{
  const priceRaw=String(form.get("price")??"").trim();
  if(!isHotelCategory(category)||name.length<2||name.length>120||
    description.length>500|| !/^(?:\d{1,6})(?:\.\d{1,2})?$/.test(priceRaw)) throw new Error("Xidmət məlumatları yanlışdır.");
+ const translations=hotelServiceTranslations(form);
  await db.hotelService.create({data:{
-   hotelId,name,description:description||null,category,
+   hotelId,name,description:description||null,...translations,category,
    department:hotelCategoryDepartment(category),
    price:new Prisma.Decimal(priceRaw),
  }});
+ revalidatePath("/hotel-admin");
+}
+export async function updateHotelServiceTranslations(form:FormData):Promise<void>{
+ const hotelId=await managerHotelId();
+ const serviceId=String(form.get("serviceId")??"");
+ if(!/^[a-z0-9_-]{8,100}$/i.test(serviceId))throw new Error("Xidmət ID-si yanlışdır.");
+ const translated=hotelServiceTranslations(form);
+ const saved=await db.hotelService.updateMany({where:{id:serviceId,hotelId},data:translated});
+ if(saved.count!==1)throw new Error("Xidmət tapılmadı.");
  revalidatePath("/hotel-admin");
 }
 export async function toggleHotelService(form:FormData):Promise<void>{
