@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
+import {hotelRuntimeSecureCookie} from "@/app/lib/hotel-cookie-policy";
 
 const COOKIE = "qr_superadmin_session";
 const DURATION_SECONDS = 60 * 60 * 2;
@@ -54,7 +55,7 @@ export async function establishSuperAdminSession(): Promise<void> {
   const value = expires + "." + signature(expires).toString("hex");
   (await cookies()).set(COOKIE, value, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: hotelRuntimeSecureCookie(),
     sameSite: "strict",
     path: "/superadmin",
     maxAge: DURATION_SECONDS,
@@ -65,9 +66,11 @@ export async function clearSuperAdminSession(): Promise<void> {
   // Cookie /superadmin yolunda yaradıldığı üçün çıxışda eyni yol silinməlidir.
   (await cookies()).set(COOKIE, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: hotelRuntimeSecureCookie(),
     sameSite: "strict",
     path: "/superadmin",
+    // Clear the same host-only path-scoped cookie with both expiry directives.
     maxAge: 0,
+    expires: new Date(0),
   });
 }

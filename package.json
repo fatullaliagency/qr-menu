@@ -13,7 +13,8 @@
     "test:orders:db": "node --experimental-strip-types --test tests/integration/order-idempotency-db.test.mjs",
     "test:orders:http": "node --experimental-strip-types --test tests/integration/order-http-smoke.test.mjs",
     "test:orders:browser": "node --experimental-strip-types --test tests/integration/order-browser-e2e.test.mjs",
-    "test:orders:restore": "node --experimental-strip-types --test tests/integration/order-backup-restore.test.mjs"
+    "test:orders:restore": "node --experimental-strip-types --test tests/integration/order-backup-restore.test.mjs",
+    "hotel:test-db:init": "node --experimental-strip-types scripts/initialize-hotel-test-db.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -21,7 +22,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-icons": "^5.7.0",
-    "@vercel/blob": "^2.8.2"
+    "@vercel/blob": "^2.8.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -32,6 +34,7 @@
     "eslint-config-next": "16.4.3",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/qrcode": "^1.5.5"
   }
 }

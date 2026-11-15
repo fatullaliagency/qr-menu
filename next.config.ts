@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {source:"/hotel/:path*",headers:[
+        {key:"Referrer-Policy",value:"no-referrer"},
+        {key:"X-Robots-Tag",value:"noindex, nofollow"},
+        {key:"Cache-Control",value:"private, no-store"},
+      ]},
+      {source:"/hotel-admin/:path*",headers:[
+        {key:"Referrer-Policy",value:"no-referrer"},
+        {key:"X-Robots-Tag",value:"noindex, nofollow"},
+      ]},
+    ];
+  },
   /* config options here */
   experimental: {
     agentFeedback: true,
