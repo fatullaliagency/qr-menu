@@ -7,6 +7,7 @@ import {hotelModuleEnabled,parseHotelCart,validHotelRoomNumber,hotelCategoryDepa
 import {hotelRoomToken,verifyHotelRoomToken,hotelTrackingTokenFromRequest,hashHotelTrackingToken} from "@/app/lib/hotel-security";
 import {isHotelRequestUUIDv4,isMatchingHotelRequest} from "@/app/lib/hotel-guest-idempotency";
 import {hotelRoomStayKey} from "@/app/lib/hotel-stay";
+import {hotelGuestLang,hotelGuestTrackingUrl} from "@/app/lib/hotel-guest-i18n";
 const MAX_CENTS=100_000_000;
 
 export async function createHotelGuestRequest(form:FormData):Promise<void> {
@@ -15,6 +16,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
  const roomNumber=String(form.get("roomNumber")??"").trim();
  const token=form.get("roomToken");
  const requestId=String(form.get("requestId")??"");
+ const lang=hotelGuestLang(form.get("lang"));
  const note=String(form.get("note")??"").trim();
  const lines=parseHotelCart(form.get("items"));
  if(!/^[a-z0-9-]{3,60}$/.test(slug)||!validHotelRoomNumber(roomNumber)||
@@ -30,7 +32,7 @@ export async function createHotelGuestRequest(form:FormData):Promise<void> {
    !verifyHotelRoomToken(getHotelSecret(),hotel.id,room.id,room.qrNonce,token))
   throw new Error("Otaq QR kodu etibarsızdır və ya otaq aktiv deyil.");
  const trackingToken=hotelTrackingTokenFromRequest(getHotelSecret(),requestId);
- const trackingPath=`/hotel/${encodeURIComponent(slug)}/track/${encodeURIComponent(requestId)}?t=${encodeURIComponent(trackingToken)}`;
+ const trackingPath=hotelGuestTrackingUrl(slug,requestId,trackingToken,lang);
  // Unique clientRequestId means a resubmission is not charged twice.
  const requestSelection={hotelId:true,roomId:true,
   orders:{select:{note:true,items:{select:{serviceId:true,quantity:true}}}}
