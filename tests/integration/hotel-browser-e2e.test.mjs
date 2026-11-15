@@ -63,13 +63,13 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
  const room=await db.hotelRoom.findFirstOrThrow({where:{hotelId:a.id,number:"101"}});
  const [food,towel,transfer,spa]=await Promise.all([
   db.hotelService.create({data:{hotelId:a.id,category:"FOOD",department:"KITCHEN",
-   name:"CI Hotel Soup",price:"6.50"}}),
+   name:"CI Hotel Soup",nameEn:"Soup",nameRu:"Суп",price:"6.50"}}),
   db.hotelService.create({data:{hotelId:a.id,category:"ROOM_SERVICE",department:"HOUSEKEEPING",
-   name:"CI Hotel Towel",price:"0.00"}}),
+   name:"CI Hotel Towel",nameEn:"Extra towel",nameRu:"Дополнительное полотенце",price:"0.00"}}),
   db.hotelService.create({data:{hotelId:a.id,category:"TRANSFER",department:"TRANSFER",
-   name:"CI Airport Pickup",price:"18.00"}}),
+   name:"CI Airport Pickup",nameEn:"Airport pickup",nameRu:"Трансфер из аэропорта",price:"18.00"}}),
   db.hotelService.create({data:{hotelId:a.id,category:"SPA",department:"SPA",
-   name:"CI Spa Massage",price:"40.00"}}),
+   name:"CI Spa Massage",nameEn:"Spa massage",nameRu:"СПА-массаж",price:"40.00"}}),
  ]);
  const token=hotelRoomToken(process.env.ADMIN_SESSION_SECRET,a.id,room.id,room.qrNonce);
  const guestUrl=BASE+"/hotel/"+a.slug+"/room/101?t="+token;
@@ -290,6 +290,28 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
     assert.doesNotMatch(html,/CI Hotel Soup|CI Hotel Towel/);
   }
   assert.equal((await fetch(guestUrl)).status,200);
+ });
+
+ await t.test("Foreign guests switch EN/RU, see USD, and keep the same secure room QR",async()=>{
+  const foreign=await guestCtx.newPage();
+  try{
+   await foreign.goto(guestUrl+"&lang=en",{waitUntil:"domcontentloaded"});
+   await foreign.getByRole("heading",{name:"Soup",exact:true}).waitFor({timeout:20000});
+   await foreign.getByRole("heading",{name:"Extra towel",exact:true}).waitFor();
+   await foreign.getByText("$3.82",{exact:true}).waitFor();
+   await foreign.getByText("Amount in AZN: 6.50 ₼").waitFor();
+   await foreign.getByRole("button",{name:"Send order to room account"}).waitFor();
+   assert.equal(await foreign.locator('input[name="lang"]').inputValue(),"en");
+   await foreign.getByRole("link",{name:"Русский"}).click();
+   await foreign.getByRole("heading",{name:"Суп",exact:true}).waitFor();
+   await foreign.getByRole("heading",{name:"Дополнительное полотенце",exact:true}).waitFor();
+   await foreign.getByRole("button",{name:"Оформить заказ на счёт номера"}).waitFor();
+   assert.equal(await foreign.locator('input[name="lang"]').inputValue(),"ru");
+   const switched=new URL(foreign.url());
+   assert.equal(switched.searchParams.get("t"),token);
+   assert.equal(switched.searchParams.get("lang"),"ru");
+   assert.match(await foreign.locator("body").innerText(),/1 USD = 1,70 AZN/);
+  }finally{await foreign.close();}
  });
 
  let requestId="";
@@ -699,6 +721,31 @@ test(BROWSER+": hotel room QR, guest cart, department status and hotel isolation
    await staffPage.goto(BASE+"/hotel-admin/panel/spa");
    assert.doesNotMatch(await staffPage.locator("body").innerText(),/CI Spa Massage/);
   }finally{await ctx.close();}
+ });
+ await t.test("Foreign-language order is charged only in AZN even when USD is displayed",async()=>{
+  const active=await db.hotelRoom.findUniqueOrThrow({where:{id:room.id}});
+  const latestQR=hotelRoomToken(process.env.ADMIN_SESSION_SECRET,a.id,room.id,active.qrNonce);
+  const foreign=await guestCtx.newPage();
+  try{
+   await foreign.goto(BASE+"/hotel/"+a.slug+"/room/101?t="+latestQR+"&lang=en");
+   await foreign.getByRole("heading",{name:"Soup",exact:true}).waitFor({timeout:20000});
+   await foreign.waitForFunction(()=>document.querySelector('input[name="requestId"]')?.value?.length===36);
+   await foreign.locator('input[type="number"]').first().fill("2");
+   await foreign.getByText("Total (estimated): $7.65",{exact:true}).waitFor();
+   await foreign.getByText("Amount in AZN: 13.00 ₼",{exact:true}).waitFor();
+   await foreign.getByRole("button",{name:"Send order to room account"}).click();
+   await foreign.waitForURL(/\/track\/.*lang=en/,{timeout:20000});
+   const requestId=new URL(foreign.url()).pathname.split("/").pop();
+   const request=await db.hotelGuestRequest.findUniqueOrThrow({
+    where:{clientRequestId:requestId},include:{orders:true}
+   });
+   assert.equal(request.orders.length,1);
+   assert.equal(request.orders[0].total.toString(),"13");
+   assert.equal(request.orders[0].department,"KITCHEN");
+   await foreign.getByRole("heading",{name:"CI Hotel Alpha · Track your order"}).waitFor();
+   await foreign.getByText("Amount in AZN: 13.00 ₼",{exact:true}).waitFor();
+   assert.equal(await db.hotelRoomCharge.count({where:{hotelId:b.id,orderId:request.orders[0].id}}),0);
+  }finally{await foreign.close();}
  });
 
 });
