@@ -15,7 +15,7 @@ export default function HotelGuestRoomPage(props:{
  return <Suspense fallback={<main className="p-8">Otel xidmətləri yüklənir...</main>}><GuestRoomContent {...props}/></Suspense>;
 }
 async function GuestRoomContent({params,searchParams}:{
- params:Promise<{slug:string;number:string}>;searchParams:Promise<{t?:string|string[]}>
+ params:Promise<{slug:string;number:string}>;searchParams:Promise<{t?:string|string[];lang?:string|string[]}>
 }){
  if(!hotelModuleEnabled())notFound();
  await connection();
